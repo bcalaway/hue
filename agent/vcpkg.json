@@ -1,0 +1,13 @@
+{
+  "name": "hue-agent",
+  "version": "0.1.0",
+  "dependencies": [
+    "grpc",
+    "gtest",
+    "nlohmann-json",
+    {
+      "name": "cpp-httplib",
+      "features": ["openssl"]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+# Deploy-time Compose fragment (docs/app-platform.md in nyc_pa_aws_gitops).
+# app-deploy.yml stages this file to the hub as-is and runs it there with
+# `docker compose pull && docker compose up -d` -- the image tag, .env
+# file, and `home-platform` network are all provided at deploy time.
+
+services:
+  app:
+    image: 147856894209.dkr.ecr.us-east-1.amazonaws.com/hue:latest
+    container_name: hue
+    restart: unless-stopped
+    environment:
+      # Not secrets -- set directly here rather than round-tripping through
+      # SSM/.env like the real credentials below.
+      APP_NAME: hue
+      # nuc4/NYC's agent, reachable from the hub over the existing
+      # WireGuard mesh (10.0.3.0/24 <-> 10.0.1.0/24) -- see ADR-0020.
+      # MVP is NYC-only (docs/roadmap.md Milestone 12); add Rambles once
+      # multi-site aggregation in the UI is actually designed.
+      AGENT_HOST: "10.0.1.34"
+      AGENT_PORT: "9090"
+    env_file:
+      - .env
+    networks:
+      - home-platform
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hue.rule=Host(`hue.billandjessie.com`)"
+      - "traefik.http.routers.hue.entrypoints=websecure"
+      - "traefik.http.routers.hue.tls.certresolver=route53"
+      - "traefik.http.routers.hue.middlewares=hsts@docker"
+      - "traefik.http.services.hue.loadbalancer.server.port=8000"
+
+networks:
+  home-platform:
+    external: true

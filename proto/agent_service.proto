@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package hue;
+
+// Service-to-service contract between the hub and each site's local agent
+// (ADR-0020 in nyc_pa_aws_gitops). Internal-only on the shared
+// `home-platform` Docker network -- never routed through Traefik, never
+// exposed to the internet. One agent instance per site (NYC/Rambles); the
+// hub picks which agent to call based on which site's state it needs.
+service AgentService {
+  // MVP is read-only (docs/roadmap.md Milestone 12): current state for this
+  // site's lights, scenes, and automations, pulled live from the local Hue
+  // bridge on every call -- no caching/sync on either side yet.
+  rpc GetState(GetStateRequest) returns (GetStateResponse);
+}
+
+message GetStateRequest {}
+
+message Light {
+  string id = 1;         // Hue CLIP v2 resource UUID
+  string name = 2;
+  bool on = 3;
+  double brightness = 4; // 0-100 -- CLIP v2's native percentage (confirmed
+                          // live against the real NYC bridge; the legacy
+                          // CLIP v1 API used a 0-254 byte range instead)
+}
+
+message Scene {
+  string id = 1;
+  string name = 2;
+  bool active = 3;        // from CLIP v2's own scene.status.active field --
+                           // confirmed live that Hue does track this,
+                           // unlike CLIP v1's scenes endpoint
+}
+
+message Automation {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  string status = 4;      // Hue's own behavior_instance.status string
+                           // (e.g. "running", "disabled") passed through
+                           // as-is rather than mapped to an enum we'd have
+                           // to keep in sync with every status Hue can emit
+}
+
+message GetStateResponse {
+  string site = 1;         // "nyc" or "rambles" -- self-describing for
+                            // logging/debugging, even though the caller
+                            // already knows which agent it queried
+  repeated Light lights = 2;
+  repeated Scene scenes = 3;
+  repeated Automation automations = 4;
+}
