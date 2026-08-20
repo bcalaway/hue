@@ -1,0 +1,15 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  hub:
+    uses: bcalaway/nyc_pa_aws_gitops/.github/workflows/app-ci.yml@main
+    with:
+      dockerfile: hub/Dockerfile
+
+  agent:
+    uses: bcalaway/nyc_pa_aws_gitops/.github/workflows/app-ci.yml@main
+    with:
+      dockerfile: agent/Dockerfile

@@ -1,0 +1,67 @@
+name: CD
+
+# hub: auto-deploy on every merge to main, same as todo-app (ADR-0019's
+# household-app default) -- build-push then immediately deploy to the AWS
+# hub.
+#
+# agent: build-push only. Deploying it to the NUCs is a separate,
+# manually-triggered step (scripts/deploy-nucs.ps1/.sh in
+# nyc_pa_aws_gitops, which runs the Ansible playbook) -- deliberately not
+# wired to auto-deploy-on-push yet, see docs/roadmap.md's Milestone 12 in
+# nyc_pa_aws_gitops for why.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  hub-build-push:
+    uses: bcalaway/nyc_pa_aws_gitops/.github/workflows/app-build-push.yml@main
+    with:
+      app_name: hue
+      dockerfile: hub/Dockerfile
+
+  hub-deploy:
+    needs: hub-build-push
+    uses: bcalaway/nyc_pa_aws_gitops/.github/workflows/app-deploy.yml@main
+    with:
+      app_name: hue
+
+  agent-build-push:
+    name: Build and push agent to ECR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Same hue-github-actions role as hub-build-push above -- one
+          # role, two ECR repos (terraform/aws/apps.tf in
+          # nyc_pa_aws_gitops), since a second IAM role/OIDC trust would be
+          # redundant just because the *deploy* path differs.
+          role-to-assume: arn:aws:iam::147856894209:role/hue-github-actions
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: agent/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/hue-agent:${{ github.sha }}
+            ${{ steps.ecr-login.outputs.registry }}/hue-agent:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
