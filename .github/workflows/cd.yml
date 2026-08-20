@@ -30,6 +30,7 @@ jobs:
     uses: bcalaway/nyc_pa_aws_gitops/.github/workflows/app-deploy.yml@main
     with:
       app_name: hue
+      compose_file: hub/deploy/docker-compose.yml
 
   agent-build-push:
     name: Build and push agent to ECR
