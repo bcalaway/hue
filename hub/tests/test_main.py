@@ -25,8 +25,8 @@ def test_api_state_without_configured_agents():
     assert response.status_code == 200
     assert response.json() == {
         "sites": {
-            "nyc": {"available": False, "lights": [], "scenes": [], "automations": []},
-            "rambles": {"available": False, "lights": [], "scenes": [], "automations": []},
+            "nyc": {"available": False, "rooms": [], "unassigned_lights": [], "automations": []},
+            "rambles": {"available": False, "rooms": [], "unassigned_lights": [], "automations": []},
         }
     }
 

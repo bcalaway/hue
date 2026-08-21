@@ -5,123 +5,285 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hue</title>
     <style>
+      :root {
+        --border: #e2e2e2;
+        --muted: #767676;
+        --bg-card: #fafafa;
+      }
       body {
-        max-width: 640px;
+        max-width: 900px;
         margin: 3rem auto;
         padding: 0 1.5rem;
         font-family: system-ui, sans-serif;
         color: #1a1a1a;
       }
-      h2 {
-        margin-top: 2.5rem;
-        text-transform: capitalize;
-      }
-      h3 {
-        margin-top: 1.5rem;
-        border-bottom: 1px solid #ddd;
-        padding-bottom: 0.25rem;
-      }
-      ul {
-        list-style: none;
-        padding: 0;
-      }
-      li {
-        padding: 0.35rem 0;
+      header {
         display: flex;
+        align-items: baseline;
         justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
       }
-      .on {
-        color: #1a7f1a;
+      h1 {
+        margin: 0;
       }
-      .off {
-        color: #999;
+      select {
+        font-size: 1rem;
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: white;
       }
       .unavailable {
         color: #b00;
       }
+      .room-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+        background: var(--bg-card);
+      }
+      .room-card h2 {
+        margin: 0 0 0.75rem 0;
+        font-size: 1.15rem;
+      }
+      .lights-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 0.6rem;
+      }
+      .light-tile {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.5rem 0.6rem;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .swatch {
+        width: 1.1rem;
+        height: 1.1rem;
+        border-radius: 50%;
+        flex: none;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        background: #d8d8d8;
+      }
+      .light-tile.off .swatch {
+        background: #d8d8d8 !important;
+        opacity: 0.5;
+      }
+      .light-info {
+        min-width: 0;
+      }
+      .light-name {
+        font-size: 0.92rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .light-state {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .light-tile.on .light-state {
+        color: #1a7f1a;
+      }
+      .scenes-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.85rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border);
+      }
+      .scene-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.65rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: white;
+        font-size: 0.85rem;
+      }
+      .scene-chip .swatch {
+        width: 0.75rem;
+        height: 0.75rem;
+      }
+      .scene-chip.active {
+        border-color: #1a7f1a;
+        box-shadow: 0 0 0 1px #1a7f1a;
+      }
+      section.automations ul {
+        list-style: none;
+        padding: 0;
+      }
+      section.automations li {
+        padding: 0.35rem 0;
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--border);
+      }
+      section.automations .on {
+        color: #1a7f1a;
+      }
+      section.automations .off {
+        color: var(--muted);
+      }
+      h3 {
+        margin-top: 2rem;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 0.25rem;
+      }
     </style>
   </head>
   <body>
-    <h1>Hue</h1>
-    <div id="sites">Loading...</div>
+    <header>
+      <h1>Hue</h1>
+      <select id="site-select"></select>
+    </header>
+    <div id="content">Loading...</div>
 
     <script>
       // Working example, not a requirement -- MVP is read-only (see
       // docs/roadmap.md's Milestone 12 in nyc_pa_aws_gitops). Replace with
       // real interactivity (kicking off scenes/automations) in a later
       // phase.
-      function renderList(items, render) {
-        const ul = document.createElement("ul");
-        for (const item of items) {
-          const li = document.createElement("li");
-          li.innerHTML = render(item);
-          ul.appendChild(li);
-        }
-        return ul;
+      const SITE_LABELS = { nyc: "NYC", rambles: "Rambles" };
+      let allSites = {};
+
+      function siteLabel(key) {
+        return SITE_LABELS[key] || key.charAt(0).toUpperCase() + key.slice(1);
       }
 
-      function renderSite(name, data) {
-        const section = document.createElement("section");
+      function renderLightTile(light) {
+        const tile = document.createElement("div");
+        tile.className = `light-tile ${light.on ? "on" : "off"}`;
+
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        if (light.on && light.color_hex) swatch.style.background = light.color_hex;
+        tile.appendChild(swatch);
+
+        const info = document.createElement("div");
+        info.className = "light-info";
+        info.innerHTML = `<div class="light-name">${light.name}</div><div class="light-state">${
+          light.on ? `${Math.round(light.brightness)}%` : "off"
+        }</div>`;
+        tile.appendChild(info);
+
+        return tile;
+      }
+
+      function renderSceneChip(scene) {
+        const chip = document.createElement("div");
+        chip.className = `scene-chip ${scene.active ? "active" : ""}`;
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.background = scene.color_hex || "#cccccc";
+        chip.appendChild(swatch);
+        const label = document.createElement("span");
+        label.textContent = scene.name;
+        chip.appendChild(label);
+        return chip;
+      }
+
+      function renderRoom(room) {
+        const card = document.createElement("div");
+        card.className = "room-card";
 
         const heading = document.createElement("h2");
-        heading.textContent = name;
-        section.appendChild(heading);
+        heading.textContent = room.name;
+        card.appendChild(heading);
+
+        const grid = document.createElement("div");
+        grid.className = "lights-grid";
+        for (const light of room.lights) grid.appendChild(renderLightTile(light));
+        card.appendChild(grid);
+
+        if (room.scenes.length > 0) {
+          const row = document.createElement("div");
+          row.className = "scenes-row";
+          for (const scene of room.scenes) row.appendChild(renderSceneChip(scene));
+          card.appendChild(row);
+        }
+
+        return card;
+      }
+
+      function renderSite(data) {
+        const content = document.createElement("div");
 
         if (!data.available) {
           const status = document.createElement("p");
           status.textContent = "Agent unreachable -- no live data.";
           status.className = "unavailable";
-          section.appendChild(status);
-          return section;
+          content.appendChild(status);
+          return content;
         }
 
-        section.appendChild(Object.assign(document.createElement("h3"), { textContent: "Lights" }));
-        section.appendChild(
-          renderList(
-            data.lights,
-            (light) =>
-              `<span>${light.name}</span><span class="${light.on ? "on" : "off"}">${
-                light.on ? `on (${Math.round(light.brightness)}%)` : "off"
-              }</span>`
-          )
-        );
+        for (const room of data.rooms) content.appendChild(renderRoom(room));
 
-        section.appendChild(Object.assign(document.createElement("h3"), { textContent: "Scenes" }));
-        section.appendChild(
-          renderList(
-            data.scenes,
-            (scene) =>
-              `<span>${scene.name}</span><span class="${scene.active ? "on" : "off"}">${
-                scene.active ? "active" : ""
-              }</span>`
-          )
-        );
+        if (data.unassigned_lights.length > 0) {
+          const card = document.createElement("div");
+          card.className = "room-card";
+          card.innerHTML = "<h2>Unassigned</h2>";
+          const grid = document.createElement("div");
+          grid.className = "lights-grid";
+          for (const light of data.unassigned_lights) grid.appendChild(renderLightTile(light));
+          card.appendChild(grid);
+          content.appendChild(card);
+        }
 
-        section.appendChild(Object.assign(document.createElement("h3"), { textContent: "Automations" }));
-        section.appendChild(
-          renderList(
-            data.automations,
-            (automation) =>
-              `<span>${automation.name}</span><span class="${
-                automation.enabled ? "on" : "off"
-              }">${automation.status}</span>`
-          )
-        );
+        if (data.automations.length > 0) {
+          const section = document.createElement("section");
+          section.className = "automations";
+          section.appendChild(Object.assign(document.createElement("h3"), { textContent: "Automations" }));
+          const ul = document.createElement("ul");
+          for (const automation of data.automations) {
+            const li = document.createElement("li");
+            li.innerHTML = `<span>${automation.name}</span><span class="${
+              automation.enabled ? "on" : "off"
+            }">${automation.status}</span>`;
+            ul.appendChild(li);
+          }
+          section.appendChild(ul);
+          content.appendChild(section);
+        }
 
-        return section;
+        return content;
+      }
+
+      function showSite(key) {
+        const contentEl = document.getElementById("content");
+        contentEl.innerHTML = "";
+        contentEl.appendChild(renderSite(allSites[key]));
       }
 
       fetch("/api/state")
         .then((r) => r.json())
         .then((data) => {
-          const sitesEl = document.getElementById("sites");
-          sitesEl.innerHTML = "";
-          for (const [name, site] of Object.entries(data.sites)) {
-            sitesEl.appendChild(renderSite(name, site));
+          allSites = data.sites;
+          const select = document.getElementById("site-select");
+          const keys = Object.keys(allSites);
+          // Default to the first available site, falling back to the
+          // first site at all if none are currently reachable.
+          const defaultKey = keys.find((k) => allSites[k].available) || keys[0];
+          for (const key of keys) {
+            const opt = document.createElement("option");
+            opt.value = key;
+            opt.textContent = siteLabel(key);
+            select.appendChild(opt);
           }
+          select.value = defaultKey;
+          select.addEventListener("change", () => showSite(select.value));
+          showSite(defaultKey);
         })
         .catch(() => {
-          document.getElementById("sites").textContent = "Failed to load state.";
+          document.getElementById("content").textContent = "Failed to load state.";
         });
     </script>
   </body>

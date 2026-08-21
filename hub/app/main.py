@@ -68,23 +68,40 @@ def root():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+def _light_dict(light):
+    return {
+        "id": light.id,
+        "name": light.name,
+        "on": light.on,
+        "brightness": light.brightness,
+        "color_hex": light.color_hex,
+    }
+
+
+def _scene_dict(scene):
+    return {"id": scene.id, "name": scene.name, "active": scene.active, "color_hex": scene.color_hex}
+
+
 @app.get("/api/state")
 def api_state():
     states = get_all_states()
     sites = {}
     for site, state in states.items():
         if state is None:
-            sites[site] = {"available": False, "lights": [], "scenes": [], "automations": []}
+            sites[site] = {"available": False, "rooms": [], "unassigned_lights": [], "automations": []}
             continue
         sites[site] = {
             "available": True,
-            "lights": [
-                {"id": light.id, "name": light.name, "on": light.on, "brightness": light.brightness}
-                for light in state.lights
+            "rooms": [
+                {
+                    "id": room.id,
+                    "name": room.name,
+                    "lights": [_light_dict(light) for light in room.lights],
+                    "scenes": [_scene_dict(scene) for scene in room.scenes],
+                }
+                for room in state.rooms
             ],
-            "scenes": [
-                {"id": scene.id, "name": scene.name, "active": scene.active} for scene in state.scenes
-            ],
+            "unassigned_lights": [_light_dict(light) for light in state.unassigned_lights],
             "automations": [
                 {"id": a.id, "name": a.name, "enabled": a.enabled, "status": a.status}
                 for a in state.automations
