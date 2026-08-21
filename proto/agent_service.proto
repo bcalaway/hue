@@ -20,9 +20,16 @@ message Light {
   string id = 1;         // Hue CLIP v2 resource UUID
   string name = 2;
   bool on = 3;
-  double brightness = 4; // 0-100 -- CLIP v2's native percentage (confirmed
-                          // live against the real NYC bridge; the legacy
-                          // CLIP v1 API used a 0-254 byte range instead)
+  double brightness = 4;  // 0-100 -- CLIP v2's native percentage (confirmed
+                           // live against the real NYC bridge; the legacy
+                           // CLIP v1 API used a 0-254 byte range instead)
+  string color_hex = 5;   // "#rrggbb", computed from the bridge's CIE xy
+                           // color (or color_temperature mirek for
+                           // tunable-white-only lights) -- empty for
+                           // dimmable/on-off-only lights with neither.
+                           // Computed agent-side (the only place that
+                           // understands Hue-specific color science) so the
+                           // hub can just render it directly.
 }
 
 message Scene {
@@ -31,6 +38,21 @@ message Scene {
   bool active = 3;        // from CLIP v2's own scene.status.active field --
                            // confirmed live that Hue does track this,
                            // unlike CLIP v1's scenes endpoint
+  string color_hex = 4;   // representative swatch color, from the scene's
+                           // own palette (or first action's color/color
+                           // temperature if the palette is empty) -- same
+                           // computation as Light.color_hex
+}
+
+message Room {
+  string id = 1;
+  string name = 2;
+  repeated Light lights = 3;
+  // Only scenes whose own CLIP v2 group is THIS room (group.rtype ==
+  // "room") -- confirmed live that a scene's group can also be a "zone"
+  // (a cross-room grouping), which this agent deliberately doesn't surface
+  // since there's no room card to attach it to yet.
+  repeated Scene scenes = 4;
 }
 
 message Automation {
@@ -47,7 +69,11 @@ message GetStateResponse {
   string site = 1;         // "nyc" or "rambles" -- self-describing for
                             // logging/debugging, even though the caller
                             // already knows which agent it queried
-  repeated Light lights = 2;
-  repeated Scene scenes = 3;
+  repeated Room rooms = 2;
+  // Lights whose device isn't a child of any CLIP v2 room -- confirmed
+  // live that a real bridge can have lights with no room at all (16 lights
+  // across only 4 rooms on the NYC bridge). Surfaced separately rather than
+  // silently dropped.
+  repeated Light unassigned_lights = 3;
   repeated Automation automations = 4;
 }

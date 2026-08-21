@@ -8,12 +8,20 @@ struct HueLight {
   std::string name;
   bool on = false;
   double brightness = 0.0;  // 0-100, CLIP v2's native percentage
+  std::string color_hex;    // "#rrggbb", empty if this light has no color
+  std::string owner_device_id;  // CLIP v2 light.owner.rid -- HueClient has
+                                 // no notion of rooms itself, so
+                                 // AgentServiceImpl does the light->room
+                                 // correlation against HueRoom::device_ids
 };
 
 struct HueScene {
   std::string id;
   std::string name;
   bool active = false;
+  std::string color_hex;  // "#rrggbb" representative swatch, may be empty
+  std::string group_id;   // CLIP v2 scene.group.rid
+  bool group_is_room = false;  // false when the group is a zone instead
 };
 
 struct HueAutomation {
@@ -21,6 +29,12 @@ struct HueAutomation {
   std::string name;
   bool enabled = false;
   std::string status;
+};
+
+struct HueRoom {
+  std::string id;
+  std::string name;
+  std::vector<std::string> device_ids;  // CLIP v2 room.children device rids
 };
 
 // Abstraction over the Hue Bridge's local CLIP v2 API, so AgentServiceImpl
@@ -31,6 +45,7 @@ class IHueClient {
   virtual std::vector<HueLight> GetLights() = 0;
   virtual std::vector<HueScene> GetScenes() = 0;
   virtual std::vector<HueAutomation> GetAutomations() = 0;
+  virtual std::vector<HueRoom> GetRooms() = 0;
 };
 
 // Talks to a real Hue Bridge over its local CLIP v2 API (HTTPS,
@@ -39,9 +54,10 @@ class IHueClient {
 // network (never the internet), and Hue's self-signed cert isn't issued
 // per-IP in a way standard verification could meaningfully check anyway.
 // Field shapes below (brightness as 0-100, scene.status.active,
-// behavior_instance.enabled/status) were confirmed against a real bridge,
-// not assumed from documentation -- see proto/agent_service.proto's
-// comments in the hue repo.
+// behavior_instance.enabled/status, room.children as device rids, a
+// light's owner as a device rid, scene.group as either a room or a zone)
+// were confirmed against a real bridge, not assumed from documentation --
+// see proto/agent_service.proto's comments in the hue repo.
 class HueClient : public IHueClient {
  public:
   HueClient(std::string bridge_host, std::string api_key);
@@ -49,6 +65,7 @@ class HueClient : public IHueClient {
   std::vector<HueLight> GetLights() override;
   std::vector<HueScene> GetScenes() override;
   std::vector<HueAutomation> GetAutomations() override;
+  std::vector<HueRoom> GetRooms() override;
 
  private:
   std::string bridge_host_;
