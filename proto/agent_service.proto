@@ -69,11 +69,26 @@ message GetStateResponse {
   string site = 1;         // "nyc" or "rambles" -- self-describing for
                             // logging/debugging, even though the caller
                             // already knows which agent it queried
-  repeated Room rooms = 2;
+  repeated Automation automations = 4;
+
+  // 2 and 3 used to be the flat `lights`/`scenes` lists this response
+  // carried before rooms existed. Reserved rather than reused -- during
+  // the version-skew window while an old agent binary is still running
+  // on a NUC (agent deploys are manual, unlike the hub's auto-deploy),
+  // reusing these numbers for the new, differently-typed `rooms`/
+  // `unassigned_lights` fields below caused real live data corruption:
+  // confirmed 2026-08-21, the hub silently parsed the old agent's Light
+  // messages (field 2) as Room messages, since both start with two
+  // string fields (id, name) that happen to decode compatibly -- every
+  // "room" came back named after an individual light, with zero lights
+  // inside, no error thrown anywhere.
+  reserved 2, 3;
+  reserved "lights", "scenes";
+
+  repeated Room rooms = 5;
   // Lights whose device isn't a child of any CLIP v2 room -- confirmed
   // live that a real bridge can have lights with no room at all (16 lights
   // across only 4 rooms on the NYC bridge). Surfaced separately rather than
   // silently dropped.
-  repeated Light unassigned_lights = 3;
-  repeated Automation automations = 4;
+  repeated Light unassigned_lights = 6;
 }
