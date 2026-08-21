@@ -6,24 +6,22 @@
 # therefore unreachable if Docker's build context were scoped to agent/
 # alone. Build/push from the repo root: `docker build -f agent/Dockerfile .`
 #
-# See templates/cpp/Dockerfile in nyc_pa_aws_gitops for the bison+flex /
-# CMAKE_CXX_SCAN_FOR_MODULES notes -- same reasoning applies here, not
-# re-explained inline.
+# See templates/cpp/Dockerfile in nyc_pa_aws_gitops for the vcpkg binary
+# cache mount / bison+flex / CMAKE_CXX_SCAN_FOR_MODULES notes -- same
+# reasoning applies here, not re-explained inline.
 #
-# vcpkg's binary cache below uses its own native GitHub Actions Cache
-# backend (x-gha), not a BuildKit `--mount=type=cache` handed off to the
-# `type=gha` layer-cache backend (which is what this used to do, and what
-# templates/cpp/Dockerfile in nyc_pa_aws_gitops still does). Confirmed
-# 2026-08-21: that combination doesn't reliably round-trip vcpkg's cache
-# across separate CI runs -- a known BuildKit/GHA limitation, not a config
-# mistake -- so every single build was recompiling grpc and its whole
-# dependency tree (protobuf, abseil, re2, c-ares, openssl) from source,
-# 10-25+ minutes regardless of what actually changed. x-gha is vcpkg's own
-# documented, recommended path for GitHub Actions and talks to the cache
-# API directly. The two secrets it needs (ACTIONS_CACHE_URL/
-# ACTIONS_RUNTIME_TOKEN) are only present in CI (via
-# crazy-max/ghaction-github-runtime in cd.yml) -- falls back to a plain
-# local filesystem cache mount for anyone building this image locally.
+# Known slow-build problem, not yet solved: the vcpkg install step's cache
+# mount doesn't reliably round-trip through the `cache-from/cache-to:
+# type=gha` backend across separate CI runs (a known BuildKit/GHA
+# limitation), so grpc's whole dependency tree (protobuf, abseil, re2,
+# c-ares, openssl) tends to recompile from source on every build,
+# 10-25+ minutes regardless of what actually changed. Tried switching to
+# vcpkg's x-gha binary caching backend on 2026-08-21 -- turned out that's
+# been removed from current vcpkg (silently warns and no-ops instead of
+# erroring, so that attempt built with zero caching at all, worse than
+# this). Reverted. A real fix needs vcpkg's current NuGet-based binary
+# caching provider, not yet implemented -- needs more research before
+# spending another CI cycle on it.
 
 FROM ubuntu:24.04 AS base
 ENV DEBIAN_FRONTEND=noninteractive
@@ -39,18 +37,16 @@ ENV VCPKG_ROOT=/opt/vcpkg
 
 WORKDIR /app
 COPY agent/vcpkg.json ./
-RUN --mount=type=secret,id=actions_cache_url \
-    --mount=type=secret,id=actions_runtime_token \
-    --mount=type=cache,target=/vcpkg-cache \
-    sh -c '\
-      if [ -s /run/secrets/actions_cache_url ]; then \
-        export ACTIONS_CACHE_URL="$(cat /run/secrets/actions_cache_url)"; \
-        export ACTIONS_RUNTIME_TOKEN="$(cat /run/secrets/actions_runtime_token)"; \
-        export VCPKG_BINARY_SOURCES="clear;x-gha,readwrite"; \
-      else \
-        export VCPKG_DEFAULT_BINARY_CACHE=/vcpkg-cache; \
-      fi; \
-      /opt/vcpkg/vcpkg install --triplet x64-linux --x-install-root=/app/vcpkg_installed'
+# Reverted 2026-08-21: tried vcpkg's x-gha binary caching backend here,
+# but it's been removed from current vcpkg (silently warns and no-ops
+# rather than erroring, so that attempt built with zero caching at all --
+# worse than this). Back to the plain local cache mount for now; a real
+# fix needs vcpkg's current NuGet-based binary caching provider, which
+# needs more research before spending another CI cycle on it. See
+# templates/cpp/Dockerfile in nyc_pa_aws_gitops for the same open problem.
+RUN --mount=type=cache,target=/vcpkg-cache \
+    VCPKG_DEFAULT_BINARY_CACHE=/vcpkg-cache \
+    /opt/vcpkg/vcpkg install --triplet x64-linux --x-install-root=/app/vcpkg_installed
 
 COPY agent/CMakeLists.txt ./
 COPY proto/ ../proto/
