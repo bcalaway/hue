@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -18,12 +18,18 @@ class Settings:
     authentik_client_id: str | None = os.environ.get("AUTHENTIK_CLIENT_ID")
     authentik_client_secret: str | None = os.environ.get("AUTHENTIK_CLIENT_SECRET")
 
-    # Milestone 12's MVP is NYC-only -- a single agent connection, not a
-    # per-site map, since multi-site aggregation in the UI isn't designed
-    # yet. Unset means the state view degrades gracefully (empty/unreachable)
-    # rather than crashing, same pattern as Postgres/Authentik above in the
-    # other templates.
-    agent_host: str = os.environ.get("AGENT_HOST", "")
+    # One agent per site (ADR-0020) -- a fixed site list, not a parsed
+    # compound env var, since the sites themselves don't change often and
+    # this keeps each site's config a plain optional string. A site whose
+    # host is unset (e.g. before that site's NUC deploy exists) degrades
+    # that site to unavailable in the API response rather than crashing,
+    # same pattern the single-site MVP used for AGENT_HOST.
+    agent_hosts: dict[str, str] = field(
+        default_factory=lambda: {
+            "nyc": os.environ.get("AGENT_HOST_NYC", ""),
+            "rambles": os.environ.get("AGENT_HOST_RAMBLES", ""),
+        }
+    )
     agent_port: int = int(os.environ.get("AGENT_PORT", "9090"))
 
 

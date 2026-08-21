@@ -15,7 +15,7 @@ Two components in one repo, following [ADR-0020](https://github.com/bcalaway/nyc
 
 MVP (current phase): read-only. See what's on, what scenes exist and which is active, what automations are configured and running. Kicking off scenes/automations, and eventually a small set of "advanced" automations beyond what Hue's own engine supports, are later phases — not built yet. Hue's own automation engine stays primary; this app only steps in for direct control and (eventually) advanced automations, not as a replacement.
 
-NYC-only for now — Rambles' agent gets stood up once that site's Hue bridge API key exists and multi-site aggregation in the UI is actually designed.
+Both sites live as of 2026-08-21 — NYC and Rambles each have a running agent, and the hub's `/api/state` and UI show both side by side (`{"sites": {"nyc": {...}, "rambles": {...}}}`), one section per site.
 
 ## Local development
 

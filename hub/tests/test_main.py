@@ -17,12 +17,18 @@ def test_root():
     assert "text/html" in response.headers["content-type"]
 
 
-def test_api_state_without_configured_agent():
-    # No AGENT_HOST in the test environment -- confirms the app degrades
-    # gracefully instead of crashing when the agent isn't reachable yet.
+def test_api_state_without_configured_agents():
+    # No AGENT_HOST_NYC/AGENT_HOST_RAMBLES in the test environment --
+    # confirms the app degrades gracefully per site instead of crashing
+    # when neither agent is reachable yet.
     response = client.get("/api/state")
     assert response.status_code == 200
-    assert response.json() == {"available": False, "lights": [], "scenes": [], "automations": []}
+    assert response.json() == {
+        "sites": {
+            "nyc": {"available": False, "lights": [], "scenes": [], "automations": []},
+            "rambles": {"available": False, "lights": [], "scenes": [], "automations": []},
+        }
+    }
 
 
 def test_login_without_configured_auth():

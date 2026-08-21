@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.grpc_client import get_state
+from app.grpc_client import get_all_states
 
 STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
@@ -70,22 +70,27 @@ def root():
 
 @app.get("/api/state")
 def api_state():
-    state = get_state()
-    if state is None:
-        return {"available": False, "lights": [], "scenes": [], "automations": []}
-    return {
-        "available": True,
-        "site": state.site,
-        "lights": [
-            {"id": light.id, "name": light.name, "on": light.on, "brightness": light.brightness}
-            for light in state.lights
-        ],
-        "scenes": [{"id": scene.id, "name": scene.name, "active": scene.active} for scene in state.scenes],
-        "automations": [
-            {"id": a.id, "name": a.name, "enabled": a.enabled, "status": a.status}
-            for a in state.automations
-        ],
-    }
+    states = get_all_states()
+    sites = {}
+    for site, state in states.items():
+        if state is None:
+            sites[site] = {"available": False, "lights": [], "scenes": [], "automations": []}
+            continue
+        sites[site] = {
+            "available": True,
+            "lights": [
+                {"id": light.id, "name": light.name, "on": light.on, "brightness": light.brightness}
+                for light in state.lights
+            ],
+            "scenes": [
+                {"id": scene.id, "name": scene.name, "active": scene.active} for scene in state.scenes
+            ],
+            "automations": [
+                {"id": a.id, "name": a.name, "enabled": a.enabled, "status": a.status}
+                for a in state.automations
+            ],
+        }
+    return {"sites": sites}
 
 
 @app.get("/login")

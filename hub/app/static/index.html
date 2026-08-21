@@ -13,7 +13,11 @@
         color: #1a1a1a;
       }
       h2 {
-        margin-top: 2rem;
+        margin-top: 2.5rem;
+        text-transform: capitalize;
+      }
+      h3 {
+        margin-top: 1.5rem;
         border-bottom: 1px solid #ddd;
         padding-bottom: 0.25rem;
       }
@@ -39,62 +43,85 @@
   </head>
   <body>
     <h1>Hue</h1>
-    <p id="status">Loading...</p>
-
-    <h2>Lights</h2>
-    <ul id="lights"></ul>
-
-    <h2>Scenes</h2>
-    <ul id="scenes"></ul>
-
-    <h2>Automations</h2>
-    <ul id="automations"></ul>
+    <div id="sites">Loading...</div>
 
     <script>
       // Working example, not a requirement -- MVP is read-only (see
       // docs/roadmap.md's Milestone 12 in nyc_pa_aws_gitops). Replace with
       // real interactivity (kicking off scenes/automations) in a later
       // phase.
+      function renderList(items, render) {
+        const ul = document.createElement("ul");
+        for (const item of items) {
+          const li = document.createElement("li");
+          li.innerHTML = render(item);
+          ul.appendChild(li);
+        }
+        return ul;
+      }
+
+      function renderSite(name, data) {
+        const section = document.createElement("section");
+
+        const heading = document.createElement("h2");
+        heading.textContent = name;
+        section.appendChild(heading);
+
+        if (!data.available) {
+          const status = document.createElement("p");
+          status.textContent = "Agent unreachable -- no live data.";
+          status.className = "unavailable";
+          section.appendChild(status);
+          return section;
+        }
+
+        section.appendChild(Object.assign(document.createElement("h3"), { textContent: "Lights" }));
+        section.appendChild(
+          renderList(
+            data.lights,
+            (light) =>
+              `<span>${light.name}</span><span class="${light.on ? "on" : "off"}">${
+                light.on ? `on (${Math.round(light.brightness)}%)` : "off"
+              }</span>`
+          )
+        );
+
+        section.appendChild(Object.assign(document.createElement("h3"), { textContent: "Scenes" }));
+        section.appendChild(
+          renderList(
+            data.scenes,
+            (scene) =>
+              `<span>${scene.name}</span><span class="${scene.active ? "on" : "off"}">${
+                scene.active ? "active" : ""
+              }</span>`
+          )
+        );
+
+        section.appendChild(Object.assign(document.createElement("h3"), { textContent: "Automations" }));
+        section.appendChild(
+          renderList(
+            data.automations,
+            (automation) =>
+              `<span>${automation.name}</span><span class="${
+                automation.enabled ? "on" : "off"
+              }">${automation.status}</span>`
+          )
+        );
+
+        return section;
+      }
+
       fetch("/api/state")
         .then((r) => r.json())
         .then((data) => {
-          const status = document.getElementById("status");
-          if (!data.available) {
-            status.textContent = "Agent unreachable -- no live data.";
-            status.className = "unavailable";
-            return;
-          }
-          status.textContent = `Site: ${data.site}`;
-
-          const lights = document.getElementById("lights");
-          for (const light of data.lights) {
-            const li = document.createElement("li");
-            li.innerHTML = `<span>${light.name}</span><span class="${light.on ? "on" : "off"}">${
-              light.on ? `on (${Math.round(light.brightness)}%)` : "off"
-            }</span>`;
-            lights.appendChild(li);
-          }
-
-          const scenes = document.getElementById("scenes");
-          for (const scene of data.scenes) {
-            const li = document.createElement("li");
-            li.innerHTML = `<span>${scene.name}</span><span class="${scene.active ? "on" : "off"}">${
-              scene.active ? "active" : ""
-            }</span>`;
-            scenes.appendChild(li);
-          }
-
-          const automations = document.getElementById("automations");
-          for (const automation of data.automations) {
-            const li = document.createElement("li");
-            li.innerHTML = `<span>${automation.name}</span><span class="${
-              automation.enabled ? "on" : "off"
-            }">${automation.status}</span>`;
-            automations.appendChild(li);
+          const sitesEl = document.getElementById("sites");
+          sitesEl.innerHTML = "";
+          for (const [name, site] of Object.entries(data.sites)) {
+            sitesEl.appendChild(renderSite(name, site));
           }
         })
         .catch(() => {
-          document.getElementById("status").textContent = "Failed to load state.";
+          document.getElementById("sites").textContent = "Failed to load state.";
         });
     </script>
   </body>

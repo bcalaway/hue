@@ -14,15 +14,19 @@ from app.config import settings  # noqa: E402
 from app.generated import agent_service_pb2, agent_service_pb2_grpc  # noqa: E402
 
 
-def get_state() -> agent_service_pb2.GetStateResponse | None:
-    # No AGENT_HOST configured means this app isn't pointed at a real agent
-    # yet (e.g. before the NUC deploy exists) -- degrade to "no data"
+def get_state(host: str) -> agent_service_pb2.GetStateResponse | None:
+    # No host configured means this site isn't pointed at a real agent yet
+    # (e.g. before that site's NUC deploy exists) -- degrade to "no data"
     # instead of crashing.
-    if not settings.agent_host:
+    if not host:
         return None
     try:
-        with grpc.insecure_channel(f"{settings.agent_host}:{settings.agent_port}") as channel:
+        with grpc.insecure_channel(f"{host}:{settings.agent_port}") as channel:
             stub = agent_service_pb2_grpc.AgentServiceStub(channel)
             return stub.GetState(agent_service_pb2.GetStateRequest(), timeout=5)
     except grpc.RpcError:
         return None
+
+
+def get_all_states() -> dict[str, agent_service_pb2.GetStateResponse | None]:
+    return {site: get_state(host) for site, host in settings.agent_hosts.items()}

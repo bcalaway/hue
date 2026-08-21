@@ -12,11 +12,11 @@ services:
       # Not secrets -- set directly here rather than round-tripping through
       # SSM/.env like the real credentials below.
       APP_NAME: hue
-      # nuc4/NYC's agent, reachable from the hub over the existing
-      # WireGuard mesh (10.0.3.0/24 <-> 10.0.1.0/24) -- see ADR-0020.
-      # MVP is NYC-only (docs/roadmap.md Milestone 12); add Rambles once
-      # multi-site aggregation in the UI is actually designed.
-      AGENT_HOST: "10.0.1.34"
+      # One agent per site, both reachable from the hub over the existing
+      # WireGuard mesh (10.0.3.0/24 <-> 10.0.1.0/24 and <-> 10.0.2.0/24) --
+      # see ADR-0020.
+      AGENT_HOST_NYC: "10.0.1.34"
+      AGENT_HOST_RAMBLES: "10.0.2.10"
       AGENT_PORT: "9090"
     env_file:
       - .env
