@@ -66,3 +66,15 @@ jobs:
             ${{ steps.ecr-login.outputs.registry }}/hue-agent:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # agent/Dockerfile's vcpkg install step uses this to cache
+          # dependency binaries to a GitHub Packages NuGet feed -- vcpkg's
+          # own currently-documented approach for GitHub Actions (their
+          # earlier x-gha backend has been removed entirely, see git
+          # history). Needs a real PAT with packages:write -- the
+          # auto-generated GITHUB_TOKEN doesn't have package-registry
+          # permissions for this. Falls back to no real caching (just the
+          # local cache-mount fallback in the Dockerfile) if this secret
+          # is unset, so a missing/expired PAT degrades to the old slow
+          # behavior rather than failing the build outright.
+          secrets: |
+            vcpkg_pat=${{ secrets.VCPKG_PAT_TOKEN }}

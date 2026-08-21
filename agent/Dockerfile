@@ -10,24 +10,28 @@
 # cache mount / bison+flex / CMAKE_CXX_SCAN_FOR_MODULES notes -- same
 # reasoning applies here, not re-explained inline.
 #
-# Known slow-build problem, not yet solved: the vcpkg install step's cache
-# mount doesn't reliably round-trip through the `cache-from/cache-to:
-# type=gha` backend across separate CI runs (a known BuildKit/GHA
-# limitation), so grpc's whole dependency tree (protobuf, abseil, re2,
-# c-ares, openssl) tends to recompile from source on every build,
-# 10-25+ minutes regardless of what actually changed. Tried switching to
-# vcpkg's x-gha binary caching backend on 2026-08-21 -- turned out that's
-# been removed from current vcpkg (silently warns and no-ops instead of
-# erroring, so that attempt built with zero caching at all, worse than
-# this). Reverted. A real fix needs vcpkg's current NuGet-based binary
-# caching provider, not yet implemented -- needs more research before
-# spending another CI cycle on it.
+# Known slow-build problem: without a real binary cache, grpc's whole
+# dependency tree (protobuf, abseil, re2, c-ares, openssl) recompiles from
+# source on every build, 10-25+ minutes regardless of what actually
+# changed. A first fix attempt (2026-08-21) tried vcpkg's x-gha binary
+# caching backend -- turned out that's been removed from current vcpkg
+# entirely (silently warns and no-ops instead of erroring, so that attempt
+# built with zero caching at all, worse than the plain cache-mount
+# fallback it replaced). Reverted; see git history for that attempt.
+#
+# Current fix: GitHub Packages via a NuGet feed, vcpkg's own currently-
+# documented/recommended approach for GitHub Actions --
+# https://learn.microsoft.com/vcpkg/consume/binary-caching-github-packages
+# (verified against that live doc 2026-08-21, not assumed). The built-in
+# GITHUB_TOKEN doesn't have package-registry permissions for this per that
+# same doc, so it needs a real PAT with packages:write, passed in as a
+# build secret (never baked into the image or any layer) -- see cd.yml.
 
 FROM ubuntu:24.04 AS base
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential clang clang-tidy cmake ninja-build git curl zip unzip tar pkg-config ca-certificates python3 \
-      bison flex \
+      bison flex mono-complete \
     && rm -rf /var/lib/apt/lists/*
 ENV CC=clang CXX=clang++
 
@@ -37,16 +41,23 @@ ENV VCPKG_ROOT=/opt/vcpkg
 
 WORKDIR /app
 COPY agent/vcpkg.json ./
-# Reverted 2026-08-21: tried vcpkg's x-gha binary caching backend here,
-# but it's been removed from current vcpkg (silently warns and no-ops
-# rather than erroring, so that attempt built with zero caching at all --
-# worse than this). Back to the plain local cache mount for now; a real
-# fix needs vcpkg's current NuGet-based binary caching provider, which
-# needs more research before spending another CI cycle on it. See
-# templates/cpp/Dockerfile in nyc_pa_aws_gitops for the same open problem.
-RUN --mount=type=cache,target=/vcpkg-cache \
-    VCPKG_DEFAULT_BINARY_CACHE=/vcpkg-cache \
-    /opt/vcpkg/vcpkg install --triplet x64-linux --x-install-root=/app/vcpkg_installed
+# Falls back to the plain local cache mount when the PAT secret isn't
+# present (e.g. building this image locally, or in the pull_request-
+# triggered ci.yml path, which doesn't have secrets access for a fork PR).
+RUN --mount=type=secret,id=vcpkg_pat \
+    --mount=type=cache,target=/vcpkg-cache \
+    sh -c '\
+      if [ -s /run/secrets/vcpkg_pat ]; then \
+        PAT="$(cat /run/secrets/vcpkg_pat)"; \
+        FEED_URL="https://nuget.pkg.github.com/bcalaway/index.json"; \
+        NUGET_EXE="$(/opt/vcpkg/vcpkg fetch nuget | tail -n 1)"; \
+        mono "$NUGET_EXE" sources add -Source "$FEED_URL" -StorePasswordInClearText -Name GitHubPackages -UserName bcalaway -Password "$PAT"; \
+        mono "$NUGET_EXE" setapikey "$PAT" -Source "$FEED_URL"; \
+        export VCPKG_BINARY_SOURCES="clear;nuget,$FEED_URL,readwrite"; \
+      else \
+        export VCPKG_DEFAULT_BINARY_CACHE=/vcpkg-cache; \
+      fi; \
+      /opt/vcpkg/vcpkg install --triplet x64-linux --x-install-root=/app/vcpkg_installed'
 
 COPY agent/CMakeLists.txt ./
 COPY proto/ ../proto/
