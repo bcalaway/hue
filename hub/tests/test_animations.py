@@ -57,16 +57,6 @@ def test_stop_and_start_animation(client):
     assert animator.is_running(animation_id)
 
 
-def test_delete_animation(client):
-    animation_id = client.post("/api/site/nyc/animations", json=ANIMATION_BODY).json()["id"]
-
-    response = client.delete(f"/api/site/nyc/animations/{animation_id}")
-
-    assert response.status_code == 200
-    assert not animator.is_running(animation_id)
-    assert client.get("/api/site/nyc/animations").json() == []
-
-
 def test_stop_unknown_animation_returns_404(client):
     response = client.post("/api/site/nyc/animations/999/stop")
     assert response.status_code == 404

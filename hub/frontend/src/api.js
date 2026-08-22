@@ -18,8 +18,12 @@ export async function activateScene(site, sceneId) {
   return res.ok;
 }
 
-export async function turnOffRoom(site, groupedLightId) {
-  const res = await fetch(`/api/site/${site}/grouped-light/${groupedLightId}/off`, { method: "POST" });
+export async function setRoomState(site, groupedLightId, on) {
+  const res = await fetch(`/api/site/${site}/grouped-light/${groupedLightId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ on }),
+  });
   return res.ok;
 }
 
@@ -48,7 +52,18 @@ export async function startAnimation(site, animationId) {
   return res.ok;
 }
 
-export async function deleteAnimation(site, animationId) {
-  const res = await fetch(`/api/site/${site}/animations/${animationId}`, { method: "DELETE" });
+export async function fetchFavorites(site) {
+  const res = await fetch(`/api/site/${site}/favorites`);
+  if (!res.ok) throw new Error(`GET /api/site/${site}/favorites -> ${res.status}`);
+  return res.json();
+}
+
+export async function addFavorite(site, roomId) {
+  const res = await fetch(`/api/site/${site}/favorites/${roomId}`, { method: "POST" });
+  return res.ok;
+}
+
+export async function removeFavorite(site, roomId) {
+  const res = await fetch(`/api/site/${site}/favorites/${roomId}`, { method: "DELETE" });
   return res.ok;
 }

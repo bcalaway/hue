@@ -9,6 +9,10 @@ const STATE = {
     nyc: {
       available: true,
       rooms: [
+        // Listed first here on purpose -- the "empty rooms sort last"
+        // tests below only mean something if the raw order doesn't
+        // already happen to put it last.
+        { id: "room-empty", name: "Empty Room", lights: [], scenes: [], grouped_light_id: "grouped-empty" },
         {
           id: "room-1",
           name: "Living Room",
@@ -50,6 +54,10 @@ function mockFetch() {
   });
 }
 
+function roomNameOrder(container) {
+  return Array.from(container.querySelectorAll(".room-name")).map((el) => el.textContent);
+}
+
 async function expandLivingRoom() {
   const toggle = await screen.findByRole("button", { name: /Living Room/ });
   await userEvent.click(toggle);
@@ -73,6 +81,27 @@ describe("App", () => {
     expect(screen.getByText("Lamp")).toBeInTheDocument();
     expect(screen.getByText("Movie night")).toBeInTheDocument();
     expect(screen.getByText("Animate")).toBeInTheDocument();
+  });
+
+  it("sorts an empty room after a room with lights, even though the API returned it first", async () => {
+    const { container } = render(<App />);
+    await screen.findByText("Living Room");
+
+    expect(roomNameOrder(container)).toEqual(["Living Room", "Empty Room"]);
+  });
+
+  it("moves a favorited room to the top, ahead of a non-favorite room with lights", async () => {
+    const { container } = render(<App />);
+    await screen.findByText("Empty Room");
+
+    // Both rooms start unfavorited, so both stars share the same
+    // accessible name -- sort order (asserted above) puts Living Room
+    // first, Empty Room second, so index 1 is Empty Room's star.
+    const stars = screen.getAllByRole("button", { name: "Favorite this room" });
+    await userEvent.click(stars[1]);
+
+    expect(roomNameOrder(container)).toEqual(["Empty Room", "Living Room"]);
+    expect(fetch).toHaveBeenCalledWith("/api/site/nyc/favorites/room-empty", { method: "POST" });
   });
 
   it("shows 'on' instead of a percentage for a non-dimmable light (e.g. a smart plug)", async () => {
@@ -120,16 +149,31 @@ describe("App", () => {
     );
   });
 
-  it("turns off a whole room via the grouped-light endpoint", async () => {
+  it("toggles a whole room off via the room-level circle (Living Room starts with a light on)", async () => {
     render(<App />);
-    const offButton = await screen.findByRole("button", { name: "Turn off" });
+    const toggle = await screen.findByRole("button", { name: "Turn room off" });
 
-    await userEvent.click(offButton);
+    await userEvent.click(toggle);
 
-    expect(fetch).toHaveBeenCalledWith("/api/site/nyc/grouped-light/grouped-1/off", { method: "POST" });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/site/nyc/grouped-light/grouped-1",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ on: false }) }),
+    );
   });
 
-  it("creates a scene-alternation animation for a room", async () => {
+  it("toggles a whole room on via the room-level circle (Empty Room starts fully off)", async () => {
+    render(<App />);
+    const toggle = await screen.findByRole("button", { name: "Turn room on" });
+
+    await userEvent.click(toggle);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/site/nyc/grouped-light/grouped-empty",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ on: true }) }),
+    );
+  });
+
+  it("creates a scene-alternation animation for a room, defaulting to a 5s interval", async () => {
     render(<App />);
     await expandLivingRoom();
 
@@ -146,7 +190,7 @@ describe("App", () => {
           scene_a_name: "Movie night",
           scene_b_id: "scene-2",
           scene_b_name: "Bright",
-          interval_seconds: 30,
+          interval_seconds: 5,
         }),
       }),
     );

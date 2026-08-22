@@ -14,7 +14,7 @@ from app import animator
 from app.config import settings
 from app.db import SessionLocal, create_tables, get_db
 from app.grpc_client import activate_scene, get_all_states, set_grouped_light_state, set_light_state
-from app.models import Animation
+from app.models import Animation, Favorite
 from app.schemas import AnimationCreate, AnimationOut
 
 STATIC_DIR = pathlib.Path(__file__).parent / "static"
@@ -171,10 +171,13 @@ def api_activate_scene(site: str, scene_id: str):
     return {"ok": True}
 
 
-@app.post("/api/site/{site}/grouped-light/{grouped_light_id}/off")
-def api_turn_off_room(site: str, grouped_light_id: str):
+@app.post("/api/site/{site}/grouped-light/{grouped_light_id}")
+def api_set_room_state(site: str, grouped_light_id: str, body: SetLightStateBody):
+    # Same shape as api_set_light_state -- a room's grouped_light is just
+    # another CLIP v2 on/off resource, so the room-level toggle in the UI
+    # (the header's on/off circle) can turn a room on just as easily as off.
     host = settings.agent_hosts.get(site, "")
-    ok, error = set_grouped_light_state(host, grouped_light_id, False)
+    ok, error = set_grouped_light_state(host, grouped_light_id, body.on)
     if not ok:
         return JSONResponse({"ok": False, "error": error}, status_code=502)
     return {"ok": True}
@@ -244,11 +247,24 @@ async def api_start_animation(site: str, animation_id: int, db: Session = Depend
     return {"ok": True}
 
 
-@app.delete("/api/site/{site}/animations/{animation_id}")
-async def api_delete_animation(site: str, animation_id: int, db: Session = Depends(get_db)):
-    animation = _get_animation_or_404(site, animation_id, db)
-    animator.stop(animation_id)
-    db.delete(animation)
+@app.get("/api/site/{site}/favorites")
+def api_list_favorites(site: str, db: Session = Depends(get_db)):
+    favorites = db.query(Favorite).filter(Favorite.site == site).all()
+    return {"room_ids": [f.room_id for f in favorites]}
+
+
+@app.post("/api/site/{site}/favorites/{room_id}")
+def api_add_favorite(site: str, room_id: str, db: Session = Depends(get_db)):
+    existing = db.query(Favorite).filter(Favorite.site == site, Favorite.room_id == room_id).first()
+    if existing is None:
+        db.add(Favorite(site=site, room_id=room_id))
+        db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/site/{site}/favorites/{room_id}")
+def api_remove_favorite(site: str, room_id: str, db: Session = Depends(get_db)):
+    db.query(Favorite).filter(Favorite.site == site, Favorite.room_id == room_id).delete()
     db.commit()
     return {"ok": True}
 

@@ -1,16 +1,21 @@
 import { useState } from "react";
 
+const INTERVAL_OPTIONS_SECONDS = [1, 2, 5, 10, 30];
+
 // At most one animation per room -- the hub enforces this too (see
 // models.py's UniqueConstraint), since two animations both flipping the
 // same room's scenes on their own schedules would just fight each other
 // with no coherent result. This panel is either showing that one
-// animation's status, or a form to create/edit it -- never a list.
-export default function AnimationControls({ room, animations, onCreate, onStop, onStart, onDelete }) {
+// animation's status, or a form to create/edit it -- never a list. No
+// delete: Stop already covers "I don't want this running right now", and
+// Edit covers "I want different scenes" -- a separate delete action just
+// made it possible to end up with nothing to click without a page refresh.
+export default function AnimationControls({ room, animations, onCreate, onStop, onStart }) {
   const existing = animations.find((a) => a.room_id === room.id);
   const [editing, setEditing] = useState(!existing);
   const [sceneAId, setSceneAId] = useState(existing?.scene_a_id ?? room.scenes[0]?.id ?? "");
   const [sceneBId, setSceneBId] = useState(existing?.scene_b_id ?? room.scenes[1]?.id ?? "");
-  const [intervalSeconds, setIntervalSeconds] = useState(existing?.interval_seconds ?? 30);
+  const [intervalSeconds, setIntervalSeconds] = useState(existing?.interval_seconds ?? 5);
 
   async function handleSave() {
     if (!sceneAId || !sceneBId || sceneAId === sceneBId) return;
@@ -23,7 +28,7 @@ export default function AnimationControls({ room, animations, onCreate, onStop, 
       scene_a_name: sceneA.name,
       scene_b_id: sceneB.id,
       scene_b_name: sceneB.name,
-      interval_seconds: Math.max(1, Number(intervalSeconds) || 30),
+      interval_seconds: Number(intervalSeconds),
     });
     // Waits for the parent's reload to finish before switching views, so
     // this doesn't briefly render neither the form nor the summary while
@@ -53,9 +58,6 @@ export default function AnimationControls({ room, animations, onCreate, onStop, 
             <button type="button" className="btn" onClick={() => setEditing(true)}>
               Edit
             </button>
-            <button type="button" className="btn btn-danger" onClick={() => onDelete(existing.id)}>
-              Delete
-            </button>
           </span>
         </div>
       )}
@@ -77,14 +79,17 @@ export default function AnimationControls({ room, animations, onCreate, onStop, 
               </option>
             ))}
           </select>
-          <input
-            type="number"
-            min="1"
+          <select
             value={intervalSeconds}
             onChange={(e) => setIntervalSeconds(e.target.value)}
             aria-label="Interval in seconds"
-          />
-          <span className="animation-form-sep">sec</span>
+          >
+            {INTERVAL_OPTIONS_SECONDS.map((seconds) => (
+              <option key={seconds} value={seconds}>
+                {seconds}s
+              </option>
+            ))}
+          </select>
           <button type="button" className="btn btn-primary" onClick={handleSave} disabled={sceneAId === sceneBId}>
             {existing ? "Save" : "Start"}
           </button>

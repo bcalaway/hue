@@ -64,18 +64,25 @@ def test_activate_scene_success():
     mock_activate.assert_called_once_with("", "scene-1")
 
 
-def test_turn_off_room_without_configured_agent():
-    response = client.post("/api/site/nyc/grouped-light/grouped-1/off")
+def test_set_room_state_without_configured_agent():
+    response = client.post("/api/site/nyc/grouped-light/grouped-1", json={"on": False})
     assert response.status_code == 502
     assert response.json()["ok"] is False
 
 
-def test_turn_off_room_success():
+def test_set_room_state_off_success():
     with patch("app.main.set_grouped_light_state", return_value=(True, "")) as mock_set:
-        response = client.post("/api/site/nyc/grouped-light/grouped-1/off")
+        response = client.post("/api/site/nyc/grouped-light/grouped-1", json={"on": False})
     assert response.status_code == 200
     assert response.json() == {"ok": True}
     mock_set.assert_called_once_with("", "grouped-1", False)
+
+
+def test_set_room_state_on_success():
+    with patch("app.main.set_grouped_light_state", return_value=(True, "")) as mock_set:
+        response = client.post("/api/site/nyc/grouped-light/grouped-1", json={"on": True})
+    assert response.status_code == 200
+    mock_set.assert_called_once_with("", "grouped-1", True)
 
 
 def test_login_without_configured_auth():

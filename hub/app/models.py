@@ -28,3 +28,17 @@ class Animation(Base):
     # task can't itself survive a redeploy.
     enabled = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+    # Presence of a row IS the favorited state -- no boolean flag to drift
+    # out of sync with it. Shared globally across whoever opens the page
+    # (no per-user accounts in this app), matching how everything else here
+    # (animations, the site dropdown) is a single household-wide view.
+    __table_args__ = (UniqueConstraint("site", "room_id", name="uq_favorites_site_room"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    site = Column(String, nullable=False)
+    room_id = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

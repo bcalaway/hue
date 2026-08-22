@@ -2,26 +2,43 @@ import { useState } from "react";
 import LightTile from "./LightTile.jsx";
 import SceneChip from "./SceneChip.jsx";
 import AnimationControls from "./AnimationControls.jsx";
+import { swatchColor } from "../colors.js";
 
 export default function RoomCard({
   room,
   animations,
+  isFavorite,
+  onToggleFavorite,
   onToggleLight,
   onActivateScene,
-  onTurnOffRoom,
+  onToggleRoom,
   onCreateAnimation,
   onStopAnimation,
   onStartAnimation,
-  onDeleteAnimation,
 }) {
   // Collapsed by default -- a house with a dozen rooms otherwise turns into
   // a wall of tiles before you've picked one. Collapsed state still shows
   // an on/off + color summary per light so nothing's hidden, just compact.
   const [expanded, setExpanded] = useState(false);
+  const roomOn = room.lights.some((light) => light.on);
 
   return (
     <div className="room-card">
       <div className="room-header">
+        {/* Only real Hue rooms get a favorite star -- the synthetic
+            "Unassigned" card (App.jsx) doesn't pass onToggleFavorite at all. */}
+        {onToggleFavorite && (
+          <button
+            type="button"
+            className={`favorite-star ${isFavorite ? "active" : ""}`}
+            onClick={onToggleFavorite}
+            aria-label={isFavorite ? "Unfavorite this room" : "Favorite this room"}
+            aria-pressed={isFavorite}
+          >
+            {isFavorite ? "★" : "☆"}
+          </button>
+        )}
+
         <button
           type="button"
           className="room-name-toggle"
@@ -38,7 +55,7 @@ export default function RoomCard({
               <span
                 key={light.id}
                 className={`summary-dot ${light.on ? "on" : "off"}`}
-                style={light.on && light.color_hex ? { background: light.color_hex } : undefined}
+                style={{ background: swatchColor(light.on, light.color_hex) }}
                 title={`${light.name}: ${light.on ? "on" : "off"}`}
               />
             ))}
@@ -46,8 +63,15 @@ export default function RoomCard({
         )}
 
         {room.grouped_light_id && (
-          <button type="button" className="room-off-button" onClick={onTurnOffRoom}>
-            Turn off
+          <button
+            type="button"
+            className={`room-toggle ${roomOn ? "on" : "off"}`}
+            onClick={onToggleRoom}
+            aria-label={roomOn ? "Turn room off" : "Turn room on"}
+            aria-pressed={roomOn}
+            title={roomOn ? "Turn room off" : "Turn room on"}
+          >
+            <span className="swatch" style={{ background: swatchColor(roomOn, "") }} />
           </button>
         )}
       </div>
@@ -75,7 +99,6 @@ export default function RoomCard({
               onCreate={onCreateAnimation}
               onStop={onStopAnimation}
               onStart={onStartAnimation}
-              onDelete={onDeleteAnimation}
             />
           )}
         </div>
