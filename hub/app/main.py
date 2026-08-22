@@ -189,14 +189,26 @@ def api_list_animations(site: str, db: Session = Depends(get_db)):
     ]
 
 
-@app.post("/api/site/{site}/animations", status_code=201)
+@app.post("/api/site/{site}/animations")
 async def api_create_animation(site: str, body: AnimationCreate, db: Session = Depends(get_db)):
     # async def, not sync -- animator.start() calls asyncio.create_task(),
     # which needs a running event loop in the calling thread. A plain `def`
     # endpoint runs in FastAPI's worker threadpool instead, where there is
     # no event loop at all; `async def` runs directly on the event loop.
-    animation = Animation(site=site, enabled=True, **body.model_dump())
-    db.add(animation)
+    #
+    # Upsert on (site, room_id) -- at most one animation per room (see the
+    # UniqueConstraint in models.py for why). Submitting the form again for
+    # a room that already has one replaces its scenes/interval and
+    # restarts its loop, rather than stacking a second competing animation.
+    animation = db.query(Animation).filter(Animation.site == site, Animation.room_id == body.room_id).first()
+    if animation is not None:
+        animator.stop(animation.id)
+        for field, value in body.model_dump().items():
+            setattr(animation, field, value)
+        animation.enabled = True
+    else:
+        animation = Animation(site=site, enabled=True, **body.model_dump())
+        db.add(animation)
     db.commit()
     db.refresh(animation)
     animator.start(

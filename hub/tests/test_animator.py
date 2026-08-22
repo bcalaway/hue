@@ -33,10 +33,10 @@ def test_start_alternates_scenes_and_stop_cancels_it(monkeypatch):
     assert calls[0][1] == 200
 
 
-def test_fade_duration_is_half_the_interval_bounded_between_200ms_and_3s():
+def test_fade_duration_spans_almost_the_whole_interval():
     assert animator._fade_duration_ms(0) == 200
-    assert animator._fade_duration_ms(2) == 1000
-    assert animator._fade_duration_ms(100) == 3000
+    assert animator._fade_duration_ms(2) == 1800
+    assert animator._fade_duration_ms(30) == 29800
 
 
 def test_start_is_idempotent_for_an_already_running_animation(monkeypatch):

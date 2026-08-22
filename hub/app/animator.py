@@ -15,11 +15,11 @@ _tasks: dict[int, asyncio.Task] = {}
 
 
 def _fade_duration_ms(interval_seconds: int) -> int:
-    # Half the cycle length, floored at 200ms (near-instant) and capped at
-    # 3s (a long fade starts feeling sluggish) -- and always leaves at least
-    # half the interval free before the *next* flip fires, so a short
-    # interval's fade can't still be running when the next one starts.
-    return max(200, min(3000, int(interval_seconds * 1000 * 0.5)))
+    # The fade spans the whole cycle, not just a portion of it -- a 200ms
+    # margin before the *next* flip fires so the bridge has processed the
+    # current transition before the next PUT lands on top of it, floored at
+    # 200ms itself so a very short interval doesn't go negative.
+    return max(200, interval_seconds * 1000 - 200)
 
 
 async def _run(animation_id: int, site: str, scene_a_id: str, scene_b_id: str, interval_seconds: int) -> None:

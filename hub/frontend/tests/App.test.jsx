@@ -133,7 +133,7 @@ describe("App", () => {
     render(<App />);
     await expandLivingRoom();
 
-    await userEvent.click(screen.getByRole("button", { name: "Start new" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start" }));
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/site/nyc/animations",

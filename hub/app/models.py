@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -6,6 +6,12 @@ Base = declarative_base()
 
 class Animation(Base):
     __tablename__ = "animations"
+    # At most one animation per room -- two running animations targeting
+    # the same room would just fight each other, each overriding the
+    # other's scene on its own schedule with no coherent result. Creating a
+    # second one for a room replaces the first rather than stacking (see
+    # main.py's api_create_animation upsert).
+    __table_args__ = (UniqueConstraint("site", "room_id", name="uq_animations_site_room"),)
 
     id = Column(Integer, primary_key=True, index=True)
     site = Column(String, nullable=False)

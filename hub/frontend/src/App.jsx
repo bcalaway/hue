@@ -70,8 +70,8 @@ export default function App() {
   }, []);
 
   const reloadAnimations = useCallback((site) => {
-    if (!site) return;
-    fetchAnimations(site)
+    if (!site) return Promise.resolve();
+    return fetchAnimations(site)
       .then(setAnimations)
       .catch(() => setAnimations([]));
   }, []);
@@ -138,8 +138,8 @@ export default function App() {
 
   const handleCreateAnimation = useCallback(
     (payload) => {
-      if (!selectedSite) return;
-      createAnimation(selectedSite, payload).then(() => reloadAnimations(selectedSite));
+      if (!selectedSite) return Promise.resolve();
+      return createAnimation(selectedSite, payload).then(() => reloadAnimations(selectedSite));
     },
     [selectedSite, reloadAnimations],
   );

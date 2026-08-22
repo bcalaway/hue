@@ -14,7 +14,7 @@ ANIMATION_BODY = {
 def test_create_and_list_animation(client):
     response = client.post("/api/site/nyc/animations", json=ANIMATION_BODY)
 
-    assert response.status_code == 201
+    assert response.status_code == 200
     body = response.json()
     assert body["site"] == "nyc"
     assert body["room_name"] == "Living Room"
@@ -25,6 +25,20 @@ def test_create_and_list_animation(client):
     assert len(listed) == 1
     assert listed[0]["id"] == body["id"]
     assert listed[0]["running"] is True
+
+
+def test_creating_a_second_animation_for_the_same_room_replaces_it_instead_of_stacking(client):
+    first = client.post("/api/site/nyc/animations", json=ANIMATION_BODY).json()
+
+    replacement = {**ANIMATION_BODY, "scene_a_name": "Bright", "interval_seconds": 60}
+    second = client.post("/api/site/nyc/animations", json=replacement).json()
+
+    assert second["id"] == first["id"]
+    assert second["scene_a_name"] == "Bright"
+    assert second["interval_seconds"] == 60
+
+    listed = client.get("/api/site/nyc/animations").json()
+    assert len(listed) == 1
 
 
 def test_stop_and_start_animation(client):
