@@ -9,6 +9,16 @@
 
 namespace {
 
+// CLIP v2 returns 207 (Multi-Status) rather than 200 when it accepts a PUT
+// but a device reports a transient issue (e.g. "communication_error" for a
+// Zigbee device that's momentarily hard to reach) -- confirmed live 2026-08-22
+// that the command still actually takes effect (a light toggled this way
+// turned on and stayed on) despite the non-200 status. Treating 207 as
+// failure caused the hub to report ok=false and revert the UI's optimistic
+// update a few seconds later even though the physical light was correctly
+// on the whole time.
+bool IsSuccessStatus(int status) { return status == 200 || status == 207; }
+
 nlohmann::json get_resource(httplib::Client& cli, const std::string& path) {
   auto res = cli.Get(path);
   if (!res || res->status != 200) return nlohmann::json::array();
@@ -204,7 +214,7 @@ bool HueClient::SetLightOn(const std::string& light_id, bool on) {
 
   nlohmann::json body = {{"on", {{"on", on}}}};
   auto res = cli.Put("/clip/v2/resource/light/" + light_id, body.dump(), "application/json");
-  return res && res->status == 200;
+  return res && IsSuccessStatus(res->status);
 }
 
 bool HueClient::RecallScene(const std::string& scene_id, int duration_ms) {
@@ -223,7 +233,7 @@ bool HueClient::RecallScene(const std::string& scene_id, int duration_ms) {
   if (duration_ms > 0) recall["duration"] = duration_ms;
   nlohmann::json body = {{"recall", recall}};
   auto res = cli.Put("/clip/v2/resource/scene/" + scene_id, body.dump(), "application/json");
-  return res && res->status == 200;
+  return res && IsSuccessStatus(res->status);
 }
 
 bool HueClient::SetGroupedLightOn(const std::string& grouped_light_id, bool on) {
@@ -234,7 +244,7 @@ bool HueClient::SetGroupedLightOn(const std::string& grouped_light_id, bool on) 
 
   nlohmann::json body = {{"on", {{"on", on}}}};
   auto res = cli.Put("/clip/v2/resource/grouped_light/" + grouped_light_id, body.dump(), "application/json");
-  return res && res->status == 200;
+  return res && IsSuccessStatus(res->status);
 }
 
 std::vector<HueRoom> HueClient::GetRooms() {
