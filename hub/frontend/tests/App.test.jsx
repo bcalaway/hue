@@ -42,10 +42,42 @@ const STATE = {
   },
 };
 
+const EXISTING_ANIMATION = {
+  id: 1,
+  site: "nyc",
+  room_id: "room-1",
+  room_name: "Living Room",
+  scene_a_id: "scene-1",
+  scene_a_name: "Movie night",
+  scene_b_id: "scene-2",
+  scene_b_name: "Bright",
+  interval_seconds: 10,
+  enabled: true,
+  running: true,
+};
+
 function mockFetch() {
   return vi.fn((url, options) => {
     if (url === "/api/state") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(STATE) });
+    }
+    if (options?.method === "POST" || options?.method === "DELETE") {
+      return Promise.resolve({ ok: true });
+    }
+    return Promise.resolve({ ok: false });
+  });
+}
+
+// Same as mockFetch, but GET /api/site/nyc/animations returns a real
+// existing animation for Living Room -- used only by the live-edit test,
+// which needs `existing` to be truthy in AnimationControls.
+function mockFetchWithExistingAnimation() {
+  return vi.fn((url, options) => {
+    if (url === "/api/state") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(STATE) });
+    }
+    if (url === "/api/site/nyc/animations" && (!options || options.method === undefined)) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([EXISTING_ANIMATION]) });
     }
     if (options?.method === "POST" || options?.method === "DELETE") {
       return Promise.resolve({ ok: true });
@@ -198,6 +230,35 @@ describe("App", () => {
           scene_b_id: "scene-2",
           scene_b_name: "Bright",
           interval_seconds: 5,
+        }),
+      }),
+    );
+  });
+
+  it("live-edits an existing animation's interval with no separate save step", async () => {
+    vi.stubGlobal("fetch", mockFetchWithExistingAnimation());
+    render(<App />);
+    await expandLivingRoom();
+
+    // An existing animation renders Stop/Start directly -- no "Edit" button
+    // gating the form behind an extra click.
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Interval in seconds"), "30");
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/site/nyc/animations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          room_id: "room-1",
+          room_name: "Living Room",
+          scene_a_id: "scene-1",
+          scene_a_name: "Movie night",
+          scene_b_id: "scene-2",
+          scene_b_name: "Bright",
+          interval_seconds: 30,
         }),
       }),
     );
