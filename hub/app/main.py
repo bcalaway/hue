@@ -106,6 +106,7 @@ def _light_dict(light):
         "on": light.on,
         "brightness": light.brightness,
         "color_hex": light.color_hex,
+        "dimmable": light.dimmable,
     }
 
 

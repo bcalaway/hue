@@ -7,7 +7,9 @@ export default function LightTile({ light, onToggle }) {
       />
       <span className="light-info">
         <span className="light-name">{light.name}</span>
-        <span className="light-state">{light.on ? `${Math.round(light.brightness)}%` : "off"}</span>
+        <span className="light-state">
+          {light.on ? (light.dimmable ? `${Math.round(light.brightness)}%` : "on") : "off"}
+        </span>
       </span>
     </button>
   );

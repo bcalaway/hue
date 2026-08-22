@@ -41,6 +41,12 @@ message SetLightStateResponse {
 
 message ActivateSceneRequest {
   string scene_id = 1;
+  // Crossfade duration in milliseconds -- CLIP v2's own recall.duration
+  // field. 0 (the default) omits it from the bridge PUT entirely, which
+  // means "use the bridge's own default transition" -- the existing
+  // click-to-activate behavior. Animations (Milestone 14) pass a real
+  // value so scene alternation fades rather than cuts.
+  int32 duration_ms = 2;
 }
 
 message ActivateSceneResponse {
@@ -64,7 +70,8 @@ message Light {
   bool on = 3;
   double brightness = 4;  // 0-100 -- CLIP v2's native percentage (confirmed
                            // live against the real NYC bridge; the legacy
-                           // CLIP v1 API used a 0-254 byte range instead)
+                           // CLIP v1 API used a 0-254 byte range instead).
+                           // Meaningless when dimmable is false -- see below.
   string color_hex = 5;   // "#rrggbb", computed from the bridge's CIE xy
                            // color (or color_temperature mirek for
                            // tunable-white-only lights) -- empty for
@@ -72,6 +79,12 @@ message Light {
                            // Computed agent-side (the only place that
                            // understands Hue-specific color science) so the
                            // hub can just render it directly.
+  bool dimmable = 6;      // Whether CLIP v2's light resource has a
+                           // "dimming" service at all -- confirmed live
+                           // that Hue smart plugs (on/off only, no
+                           // brightness) simply omit it, which without this
+                           // flag left the hub defaulting brightness to 0
+                           // and showing a real "on" plug as "0%".
 }
 
 message Scene {

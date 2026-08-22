@@ -10,6 +10,7 @@ void FillLightProto(const HueLight& light, hue::Light* out) {
   out->set_on(light.on);
   out->set_brightness(light.brightness);
   out->set_color_hex(light.color_hex);
+  out->set_dimmable(light.dimmable);
 }
 
 }  // namespace
@@ -83,7 +84,7 @@ grpc::Status AgentServiceImpl::SetLightState(grpc::ServerContext* /*context*/,
 grpc::Status AgentServiceImpl::ActivateScene(grpc::ServerContext* /*context*/,
                                              const hue::ActivateSceneRequest* request,
                                              hue::ActivateSceneResponse* response) {
-  bool ok = hue_client_.RecallScene(request->scene_id());
+  bool ok = hue_client_.RecallScene(request->scene_id(), request->duration_ms());
   response->set_ok(ok);
   if (!ok) response->set_error("bridge rejected the request");
   return grpc::Status::OK;

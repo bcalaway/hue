@@ -46,13 +46,16 @@ def set_light_state(host: str, light_id: str, on: bool) -> tuple[bool, str]:
         return False, exc.details() or "agent unreachable"
 
 
-def activate_scene(host: str, scene_id: str) -> tuple[bool, str]:
+def activate_scene(host: str, scene_id: str, duration_ms: int = 0) -> tuple[bool, str]:
+    # duration_ms=0 (the default, used by the manual "click a scene chip"
+    # path) omits CLIP v2's recall.duration -- the bridge's own default
+    # transition. animator.py passes a real value so animations crossfade.
     if not host:
         return False, "site has no agent configured"
     try:
         with grpc.insecure_channel(f"{host}:{settings.agent_port}") as channel:
             stub = agent_service_pb2_grpc.AgentServiceStub(channel)
-            request = agent_service_pb2.ActivateSceneRequest(scene_id=scene_id)
+            request = agent_service_pb2.ActivateSceneRequest(scene_id=scene_id, duration_ms=duration_ms)
             response = stub.ActivateScene(request, timeout=5)
             return response.ok, response.error
     except grpc.RpcError as exc:

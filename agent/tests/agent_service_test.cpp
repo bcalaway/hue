@@ -19,13 +19,25 @@ class FakeHueClient : public IHueClient {
          .on = true,
          .brightness = 75.5,
          .color_hex = "#ff0000",
-         .owner_device_id = "device-1"},
+         .owner_device_id = "device-1",
+         .dimmable = true},
         {.id = "light-2",
          .name = "Garage",
          .on = false,
          .brightness = 0.0,
          .color_hex = "",
-         .owner_device_id = "device-unassigned"},
+         .owner_device_id = "device-unassigned",
+         .dimmable = true},
+        // A smart plug: on/off only, no "dimming" service at all -- the
+        // real bug this fixture exercises (confirmed live: a plug showing
+        // "on" but the hub rendering it as "0%" before `dimmable` existed).
+        {.id = "light-3",
+         .name = "Fountain plug",
+         .on = true,
+         .brightness = 0.0,
+         .color_hex = "",
+         .owner_device_id = "device-1",
+         .dimmable = false},
     };
   }
 
@@ -67,8 +79,9 @@ class FakeHueClient : public IHueClient {
     return set_light_on_result;
   }
 
-  bool RecallScene(const std::string& scene_id) override {
+  bool RecallScene(const std::string& scene_id, int duration_ms) override {
     last_scene_id = scene_id;
+    last_duration_ms = duration_ms;
     return recall_scene_result;
   }
 
@@ -83,6 +96,7 @@ class FakeHueClient : public IHueClient {
   bool set_light_on_result = true;
 
   std::string last_scene_id;
+  int last_duration_ms = -1;
   bool recall_scene_result = true;
 
   std::string last_grouped_light_id;
@@ -110,12 +124,19 @@ TEST(AgentServiceTest, GetStateReturnsBridgeDataForTheConfiguredSite) {
   EXPECT_EQ(room.name(), "Living Room");
   EXPECT_EQ(room.grouped_light_id(), "grouped-light-1");
 
-  ASSERT_EQ(room.lights_size(), 1);
+  ASSERT_EQ(room.lights_size(), 2);
   EXPECT_EQ(room.lights(0).id(), "light-1");
   EXPECT_EQ(room.lights(0).name(), "Front door");
   EXPECT_TRUE(room.lights(0).on());
   EXPECT_DOUBLE_EQ(room.lights(0).brightness(), 75.5);
   EXPECT_EQ(room.lights(0).color_hex(), "#ff0000");
+  EXPECT_TRUE(room.lights(0).dimmable());
+
+  // The smart plug: on, but not dimmable -- the hub uses this flag to show
+  // "on" instead of a meaningless "0%".
+  EXPECT_EQ(room.lights(1).id(), "light-3");
+  EXPECT_TRUE(room.lights(1).on());
+  EXPECT_FALSE(room.lights(1).dimmable());
 
   // Only the room-scoped scene made it in -- the zone-scoped one was dropped.
   ASSERT_EQ(room.scenes_size(), 1);
@@ -185,6 +206,23 @@ TEST(AgentServiceTest, ActivateScenePassesThroughToTheBridgeAndReportsSuccess) {
   ASSERT_TRUE(status.ok());
   EXPECT_TRUE(response.ok());
   EXPECT_EQ(fake_client.last_scene_id, "scene-1");
+  EXPECT_EQ(fake_client.last_duration_ms, 0);
+}
+
+TEST(AgentServiceTest, ActivateScenePassesThroughADurationForCrossfading) {
+  FakeHueClient fake_client;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::ActivateSceneRequest request;
+  request.set_scene_id("scene-1");
+  request.set_duration_ms(3000);
+  hue::ActivateSceneResponse response;
+
+  grpc::Status status = service.ActivateScene(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_EQ(fake_client.last_duration_ms, 3000);
 }
 
 TEST(AgentServiceTest, ActivateSceneReportsBridgeFailureWithoutThrowing) {

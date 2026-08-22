@@ -6,8 +6,8 @@ from app import animator
 def test_start_alternates_scenes_and_stop_cancels_it(monkeypatch):
     calls = []
 
-    def fake_activate_scene(host, scene_id):
-        calls.append(scene_id)
+    def fake_activate_scene(host, scene_id, duration_ms=0):
+        calls.append((scene_id, duration_ms))
         return True, ""
 
     monkeypatch.setattr(animator, "activate_scene", fake_activate_scene)
@@ -27,12 +27,20 @@ def test_start_alternates_scenes_and_stop_cancels_it(monkeypatch):
     asyncio.run(scenario())
 
     assert len(calls) >= 2
-    assert calls[0] == "scene-a"
-    assert calls[1] == "scene-b"
+    assert calls[0][0] == "scene-a"
+    assert calls[1][0] == "scene-b"
+    # interval_seconds=0 -> the floor kicks in, not zero-length fades.
+    assert calls[0][1] == 200
+
+
+def test_fade_duration_is_half_the_interval_bounded_between_200ms_and_3s():
+    assert animator._fade_duration_ms(0) == 200
+    assert animator._fade_duration_ms(2) == 1000
+    assert animator._fade_duration_ms(100) == 3000
 
 
 def test_start_is_idempotent_for_an_already_running_animation(monkeypatch):
-    monkeypatch.setattr(animator, "activate_scene", lambda host, scene_id: (True, ""))
+    monkeypatch.setattr(animator, "activate_scene", lambda host, scene_id, duration_ms=0: (True, ""))
 
     async def scenario():
         animator.start(2, "nyc", "scene-a", "scene-b", interval_seconds=100)

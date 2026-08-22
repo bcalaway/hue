@@ -14,8 +14,17 @@ log = logging.getLogger("hue.animator")
 _tasks: dict[int, asyncio.Task] = {}
 
 
+def _fade_duration_ms(interval_seconds: int) -> int:
+    # Half the cycle length, floored at 200ms (near-instant) and capped at
+    # 3s (a long fade starts feeling sluggish) -- and always leaves at least
+    # half the interval free before the *next* flip fires, so a short
+    # interval's fade can't still be running when the next one starts.
+    return max(200, min(3000, int(interval_seconds * 1000 * 0.5)))
+
+
 async def _run(animation_id: int, site: str, scene_a_id: str, scene_b_id: str, interval_seconds: int) -> None:
     host = settings.agent_hosts.get(site, "")
+    duration_ms = _fade_duration_ms(interval_seconds)
     flip = False
     while True:
         scene_id = scene_b_id if flip else scene_a_id
@@ -23,7 +32,7 @@ async def _run(animation_id: int, site: str, scene_a_id: str, scene_b_id: str, i
         # event loop -- grpc_client's stubs are sync, matching every other
         # caller in this app (the request-handling endpoints run sync too,
         # FastAPI's own threadpool handles those).
-        ok, error = await asyncio.to_thread(activate_scene, host, scene_id)
+        ok, error = await asyncio.to_thread(activate_scene, host, scene_id, duration_ms)
         if not ok:
             log.warning("animation %d: activate_scene(%s) failed: %s", animation_id, scene_id, error)
         flip = not flip

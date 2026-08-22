@@ -121,6 +121,7 @@ std::vector<HueLight> HueClient::GetLights() {
     light.id = item.value("id", "");
     light.name = name_of(item);
     light.on = item.value("on", nlohmann::json::object()).value("on", false);
+    light.dimmable = item.contains("dimming");
     light.brightness = item.value("dimming", nlohmann::json::object()).value("brightness", 0.0);
     light.color_hex = color_of(item);
     light.owner_device_id = item.value("owner", nlohmann::json::object()).value("rid", "");
@@ -206,7 +207,7 @@ bool HueClient::SetLightOn(const std::string& light_id, bool on) {
   return res && res->status == 200;
 }
 
-bool HueClient::RecallScene(const std::string& scene_id) {
+bool HueClient::RecallScene(const std::string& scene_id, int duration_ms) {
   httplib::Client cli("https://" + bridge_host_);
   cli.enable_server_certificate_verification(false);
   cli.set_default_headers({{"hue-application-key", api_key_}});
@@ -215,7 +216,12 @@ bool HueClient::RecallScene(const std::string& scene_id) {
   // CLIP v2's scene recall action -- "active" starts the scene's own
   // transition; the alternative "dynamic_palette" is for scenes with
   // multiple palette colors cycling on their own, not used here.
-  nlohmann::json body = {{"recall", {{"action", "active"}}}};
+  // duration (ms) is CLIP v2's own crossfade-length field, only meaningful
+  // alongside action=active -- omitted (bridge's own default transition)
+  // when the caller passes 0.
+  nlohmann::json recall = {{"action", "active"}};
+  if (duration_ms > 0) recall["duration"] = duration_ms;
+  nlohmann::json body = {{"recall", recall}};
   auto res = cli.Put("/clip/v2/resource/scene/" + scene_id, body.dump(), "application/json");
   return res && res->status == 200;
 }

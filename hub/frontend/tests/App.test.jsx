@@ -12,7 +12,10 @@ const STATE = {
         {
           id: "room-1",
           name: "Living Room",
-          lights: [{ id: "light-1", name: "Lamp", on: false, brightness: 0, color_hex: "" }],
+          lights: [
+            { id: "light-1", name: "Lamp", on: false, brightness: 0, color_hex: "", dimmable: true },
+            { id: "light-2", name: "Fountain plug", on: true, brightness: 0, color_hex: "", dimmable: false },
+          ],
           scenes: [
             { id: "scene-1", name: "Movie night", active: false, color_hex: "#0000ff" },
             { id: "scene-2", name: "Bright", active: false, color_hex: "#ffffff" },
@@ -70,6 +73,15 @@ describe("App", () => {
     expect(screen.getByText("Lamp")).toBeInTheDocument();
     expect(screen.getByText("Movie night")).toBeInTheDocument();
     expect(screen.getByText("Animate")).toBeInTheDocument();
+  });
+
+  it("shows 'on' instead of a percentage for a non-dimmable light (e.g. a smart plug)", async () => {
+    render(<App />);
+    await expandLivingRoom();
+
+    const plugTile = screen.getByRole("button", { name: /Fountain plug/ });
+    expect(plugTile).toHaveTextContent("on");
+    expect(plugTile).not.toHaveTextContent("%");
   });
 
   it("shows automation status and reveals its definition on click", async () => {

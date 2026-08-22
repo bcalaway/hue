@@ -7,12 +7,16 @@ struct HueLight {
   std::string id;
   std::string name;
   bool on = false;
-  double brightness = 0.0;  // 0-100, CLIP v2's native percentage
+  double brightness = 0.0;  // 0-100, CLIP v2's native percentage. Meaningless
+                             // when dimmable is false.
   std::string color_hex;    // "#rrggbb", empty if this light has no color
   std::string owner_device_id;  // CLIP v2 light.owner.rid -- HueClient has
                                  // no notion of rooms itself, so
                                  // AgentServiceImpl does the light->room
                                  // correlation against HueRoom::device_ids
+  bool dimmable = false;    // Whether this light's CLIP v2 resource has a
+                             // "dimming" service -- false for on/off-only
+                             // devices like Hue smart plugs.
 };
 
 struct HueScene {
@@ -55,7 +59,9 @@ class IHueClient {
   // rather than a thrown error, since "the bridge rejected this" is a
   // routine, expected outcome (e.g. a stale light id), not a program bug.
   virtual bool SetLightOn(const std::string& light_id, bool on) = 0;
-  virtual bool RecallScene(const std::string& scene_id) = 0;
+  // duration_ms of 0 omits CLIP v2's recall.duration entirely (bridge's own
+  // default transition); a positive value crossfades over that many ms.
+  virtual bool RecallScene(const std::string& scene_id, int duration_ms) = 0;
   virtual bool SetGroupedLightOn(const std::string& grouped_light_id, bool on) = 0;
 };
 
@@ -78,7 +84,7 @@ class HueClient : public IHueClient {
   std::vector<HueAutomation> GetAutomations() override;
   std::vector<HueRoom> GetRooms() override;
   bool SetLightOn(const std::string& light_id, bool on) override;
-  bool RecallScene(const std::string& scene_id) override;
+  bool RecallScene(const std::string& scene_id, int duration_ms) override;
   bool SetGroupedLightOn(const std::string& grouped_light_id, bool on) override;
 
  private:
