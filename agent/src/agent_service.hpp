@@ -13,6 +13,10 @@ class AgentServiceImpl final : public hue::AgentService::Service {
 
   grpc::Status GetState(grpc::ServerContext* context, const hue::GetStateRequest* request,
                         hue::GetStateResponse* response) override;
+  grpc::Status SetLightState(grpc::ServerContext* context, const hue::SetLightStateRequest* request,
+                             hue::SetLightStateResponse* response) override;
+  grpc::Status ActivateScene(grpc::ServerContext* context, const hue::ActivateSceneRequest* request,
+                             hue::ActivateSceneResponse* response) override;
 
  private:
   IHueClient& hue_client_;

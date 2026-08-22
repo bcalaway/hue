@@ -30,3 +30,30 @@ def get_state(host: str) -> agent_service_pb2.GetStateResponse | None:
 
 def get_all_states() -> dict[str, agent_service_pb2.GetStateResponse | None]:
     return {site: get_state(host) for site, host in settings.agent_hosts.items()}
+
+
+def set_light_state(host: str, light_id: str, on: bool) -> tuple[bool, str]:
+    if not host:
+        return False, "site has no agent configured"
+    try:
+        with grpc.insecure_channel(f"{host}:{settings.agent_port}") as channel:
+            stub = agent_service_pb2_grpc.AgentServiceStub(channel)
+            response = stub.SetLightState(
+                agent_service_pb2.SetLightStateRequest(light_id=light_id, on=on), timeout=5
+            )
+            return response.ok, response.error
+    except grpc.RpcError as exc:
+        return False, exc.details() or "agent unreachable"
+
+
+def activate_scene(host: str, scene_id: str) -> tuple[bool, str]:
+    if not host:
+        return False, "site has no agent configured"
+    try:
+        with grpc.insecure_channel(f"{host}:{settings.agent_port}") as channel:
+            stub = agent_service_pb2_grpc.AgentServiceStub(channel)
+            request = agent_service_pb2.ActivateSceneRequest(scene_id=scene_id)
+            response = stub.ActivateScene(request, timeout=5)
+            return response.ok, response.error
+    except grpc.RpcError as exc:
+        return False, exc.details() or "agent unreachable"

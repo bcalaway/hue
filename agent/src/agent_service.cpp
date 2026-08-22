@@ -68,3 +68,21 @@ grpc::Status AgentServiceImpl::GetState(grpc::ServerContext* /*context*/, const 
 
   return grpc::Status::OK;
 }
+
+grpc::Status AgentServiceImpl::SetLightState(grpc::ServerContext* /*context*/,
+                                             const hue::SetLightStateRequest* request,
+                                             hue::SetLightStateResponse* response) {
+  bool ok = hue_client_.SetLightOn(request->light_id(), request->on());
+  response->set_ok(ok);
+  if (!ok) response->set_error("bridge rejected the request");
+  return grpc::Status::OK;
+}
+
+grpc::Status AgentServiceImpl::ActivateScene(grpc::ServerContext* /*context*/,
+                                             const hue::ActivateSceneRequest* request,
+                                             hue::ActivateSceneResponse* response) {
+  bool ok = hue_client_.RecallScene(request->scene_id());
+  response->set_ok(ok);
+  if (!ok) response->set_error("bridge rejected the request");
+  return grpc::Status::OK;
+}

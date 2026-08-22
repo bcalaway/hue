@@ -194,6 +194,31 @@ std::vector<HueAutomation> HueClient::GetAutomations() {
   return automations;
 }
 
+bool HueClient::SetLightOn(const std::string& light_id, bool on) {
+  httplib::Client cli("https://" + bridge_host_);
+  cli.enable_server_certificate_verification(false);
+  cli.set_default_headers({{"hue-application-key", api_key_}});
+  cli.set_connection_timeout(5);
+
+  nlohmann::json body = {{"on", {{"on", on}}}};
+  auto res = cli.Put("/clip/v2/resource/light/" + light_id, body.dump(), "application/json");
+  return res && res->status == 200;
+}
+
+bool HueClient::RecallScene(const std::string& scene_id) {
+  httplib::Client cli("https://" + bridge_host_);
+  cli.enable_server_certificate_verification(false);
+  cli.set_default_headers({{"hue-application-key", api_key_}});
+  cli.set_connection_timeout(5);
+
+  // CLIP v2's scene recall action -- "active" starts the scene's own
+  // transition; the alternative "dynamic_palette" is for scenes with
+  // multiple palette colors cycling on their own, not used here.
+  nlohmann::json body = {{"recall", {{"action", "active"}}}};
+  auto res = cli.Put("/clip/v2/resource/scene/" + scene_id, body.dump(), "application/json");
+  return res && res->status == 200;
+}
+
 std::vector<HueRoom> HueClient::GetRooms() {
   httplib::Client cli("https://" + bridge_host_);
   cli.enable_server_certificate_verification(false);

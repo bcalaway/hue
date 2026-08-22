@@ -4,11 +4,12 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.grpc_client import get_all_states
+from app.grpc_client import activate_scene, get_all_states, set_light_state
 
 STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
@@ -108,6 +109,28 @@ def api_state():
             ],
         }
     return {"sites": sites}
+
+
+class SetLightStateBody(BaseModel):
+    on: bool
+
+
+@app.post("/api/site/{site}/light/{light_id}")
+def api_set_light_state(site: str, light_id: str, body: SetLightStateBody):
+    host = settings.agent_hosts.get(site, "")
+    ok, error = set_light_state(host, light_id, body.on)
+    if not ok:
+        return JSONResponse({"ok": False, "error": error}, status_code=502)
+    return {"ok": True}
+
+
+@app.post("/api/site/{site}/scene/{scene_id}/activate")
+def api_activate_scene(site: str, scene_id: str):
+    host = settings.agent_hosts.get(site, "")
+    ok, error = activate_scene(host, scene_id)
+    if not ok:
+        return JSONResponse({"ok": False, "error": error}, status_code=502)
+    return {"ok": True}
 
 
 @app.get("/login")

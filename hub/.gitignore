@@ -5,3 +5,6 @@ __pycache__/
 .env
 .venv/
 app/generated/
+# Built by hub/frontend/'s Vite build (COPY --from=frontend-build in
+# hub/Dockerfile) -- never checked in, same as hub/frontend/dist/ itself.
+app/static/

@@ -5,12 +5,45 @@
 # ../proto/agent_service.proto (outside hub/ itself, so unreachable if the
 # build context were scoped to hub/ alone). Build/push from the repo root:
 # `docker build -f hub/Dockerfile .`
+#
+# The frontend (hub/frontend/, React + Vite) is a separate Node build
+# baked into the Python image's static/ dir at build time -- there's no
+# Node runtime in the final image, just its static output. app-ci.yml only
+# ever builds one --target per check (lint/test/final), so the frontend's
+# own lint/test have to hang off the SAME targets as the backend's rather
+# than being separate CI steps -- forced via COPY --from, same technique
+# the protoc stage below already uses to inject generated code.
+
+FROM node:24-slim AS frontend-base
+WORKDIR /frontend
+COPY hub/frontend/package*.json ./
+# `npm install` rather than `npm ci` -- there's no package-lock.json checked
+# in yet (this machine has no local Node to generate a real one; see
+# nyc_pa_aws_gitops's CLAUDE.md gotcha on Docker Desktop/WSL needing
+# elevated setup this session couldn't do). `npm ci` hard-requires an
+# existing lockfile and would fail outright without one. Follow-up: once a
+# real lockfile exists (generate with `npm install` from a machine with
+# Node, then commit hub/frontend/package-lock.json), switch this back to
+# `npm ci` for reproducible builds, matching templates/react/Dockerfile's
+# convention in nyc_pa_aws_gitops.
+RUN npm install
+COPY hub/frontend/ ./
+
+FROM frontend-base AS frontend-lint
+RUN npm run lint
+
+FROM frontend-base AS frontend-build
+RUN npm run build
+
+FROM frontend-build AS frontend-test
+RUN npm test
 
 FROM python:3.12-slim AS base
 WORKDIR /app
 COPY hub/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY hub/app/ app/
+COPY --from=frontend-build /frontend/dist app/static/
 
 # Separate ephemeral stage for protoc codegen -- keeps grpcio-tools (which
 # bundles its own protoc binary, unnecessary bulk) out of both `base` and
@@ -35,9 +68,11 @@ COPY hub/ruff.toml .
 
 FROM dev AS lint
 RUN ruff check app/ tests/
+COPY --from=frontend-lint /frontend/package.json /tmp/frontend-lint-marker
 
 FROM dev AS test
 RUN pytest
+COPY --from=frontend-test /frontend/package.json /tmp/frontend-test-marker
 
 FROM with-proto AS final
 EXPOSE 8000

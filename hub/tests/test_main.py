@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -29,6 +31,37 @@ def test_api_state_without_configured_agents():
             "rambles": {"available": False, "rooms": [], "unassigned_lights": [], "automations": []},
         }
     }
+
+
+def test_set_light_state_without_configured_agent():
+    # "nyc"/"rambles" are the only known site keys but neither has
+    # AGENT_HOST_* set in the test environment -- same graceful-degradation
+    # contract as /api/state, just on the write path.
+    response = client.post("/api/site/nyc/light/light-1", json={"on": True})
+    assert response.status_code == 502
+    assert response.json()["ok"] is False
+
+
+def test_set_light_state_success():
+    with patch("app.main.set_light_state", return_value=(True, "")) as mock_set:
+        response = client.post("/api/site/nyc/light/light-1", json={"on": True})
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    mock_set.assert_called_once_with("", "light-1", True)
+
+
+def test_activate_scene_without_configured_agent():
+    response = client.post("/api/site/nyc/scene/scene-1/activate")
+    assert response.status_code == 502
+    assert response.json()["ok"] is False
+
+
+def test_activate_scene_success():
+    with patch("app.main.activate_scene", return_value=(True, "")) as mock_activate:
+        response = client.post("/api/site/nyc/scene/scene-1/activate")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    mock_activate.assert_called_once_with("", "scene-1")
 
 
 def test_login_without_configured_auth():

@@ -1,0 +1,204 @@
+/* Palette matches the billandjessie.com landing page (portal/index.html in
+   nyc_pa_aws_gitops) so every app on this platform feels like one product,
+   not a pile of separately-styled tools. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --card: #1a1d24;
+  --border: #2a2e37;
+  --text: #e6e6e6;
+  --muted: #9aa0a6;
+  --accent: #4a90e2;
+  --on: #3ddc84;
+  --off: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.75rem;
+}
+
+h1 {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.75rem;
+}
+
+select {
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+}
+
+.unavailable {
+  color: var(--off);
+}
+
+.room-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  background: var(--card);
+}
+
+.room-card h2 {
+  margin: 0 0 0.9rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.lights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.6rem;
+}
+
+.light-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.light-tile:hover {
+  border-color: var(--accent);
+}
+
+.swatch {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #4a4f5a;
+}
+
+.light-tile.off .swatch {
+  opacity: 0.5;
+}
+
+.light-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.light-name {
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.light-state {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.light-tile.on .light-state {
+  color: var(--on);
+}
+
+.scenes-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.scene-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.scene-chip:hover {
+  border-color: var(--accent);
+}
+
+.scene-chip .swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.scene-chip.active {
+  border-color: var(--on);
+  box-shadow: 0 0 0 1px var(--on);
+}
+
+section.automations ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+section.automations li {
+  padding: 0.5rem 0;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+section.automations .on {
+  color: var(--on);
+}
+
+section.automations .off {
+  color: var(--muted);
+}
+
+h3 {
+  margin-top: 2.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}

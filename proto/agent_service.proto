@@ -12,9 +12,35 @@ service AgentService {
   // site's lights, scenes, and automations, pulled live from the local Hue
   // bridge on every call -- no caching/sync on either side yet.
   rpc GetState(GetStateRequest) returns (GetStateResponse);
+
+  // Control RPCs (Milestone 14) -- direct passthrough to the bridge's own
+  // CLIP v2 PUT semantics, no state held on either the agent or hub side.
+  // Both are idempotent from the caller's perspective (setting the same
+  // on/off value twice, or recalling the same scene twice, is harmless).
+  rpc SetLightState(SetLightStateRequest) returns (SetLightStateResponse);
+  rpc ActivateScene(ActivateSceneRequest) returns (ActivateSceneResponse);
 }
 
 message GetStateRequest {}
+
+message SetLightStateRequest {
+  string light_id = 1;
+  bool on = 2;
+}
+
+message SetLightStateResponse {
+  bool ok = 1;
+  string error = 2;  // empty on success
+}
+
+message ActivateSceneRequest {
+  string scene_id = 1;
+}
+
+message ActivateSceneResponse {
+  bool ok = 1;
+  string error = 2;  // empty on success
+}
 
 message Light {
   string id = 1;         // Hue CLIP v2 resource UUID

@@ -53,6 +53,24 @@ class FakeHueClient : public IHueClient {
   std::vector<HueRoom> GetRooms() override {
     return {{.id = "room-1", .name = "Living Room", .device_ids = {"device-1"}}};
   }
+
+  bool SetLightOn(const std::string& light_id, bool on) override {
+    last_light_id = light_id;
+    last_on = on;
+    return set_light_on_result;
+  }
+
+  bool RecallScene(const std::string& scene_id) override {
+    last_scene_id = scene_id;
+    return recall_scene_result;
+  }
+
+  std::string last_light_id;
+  bool last_on = false;
+  bool set_light_on_result = true;
+
+  std::string last_scene_id;
+  bool recall_scene_result = true;
 };
 
 }  // namespace
@@ -95,4 +113,74 @@ TEST(AgentServiceTest, GetStateReturnsBridgeDataForTheConfiguredSite) {
   EXPECT_EQ(response.automations(0).name(), "Sunset");
   EXPECT_TRUE(response.automations(0).enabled());
   EXPECT_EQ(response.automations(0).status(), "running");
+}
+
+TEST(AgentServiceTest, SetLightStatePassesThroughToTheBridgeAndReportsSuccess) {
+  FakeHueClient fake_client;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::SetLightStateRequest request;
+  request.set_light_id("light-1");
+  request.set_on(true);
+  hue::SetLightStateResponse response;
+
+  grpc::Status status = service.SetLightState(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_TRUE(response.ok());
+  EXPECT_EQ(response.error(), "");
+  EXPECT_EQ(fake_client.last_light_id, "light-1");
+  EXPECT_TRUE(fake_client.last_on);
+}
+
+TEST(AgentServiceTest, SetLightStateReportsBridgeFailureWithoutThrowing) {
+  FakeHueClient fake_client;
+  fake_client.set_light_on_result = false;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::SetLightStateRequest request;
+  request.set_light_id("light-1");
+  request.set_on(false);
+  hue::SetLightStateResponse response;
+
+  grpc::Status status = service.SetLightState(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_FALSE(response.ok());
+  EXPECT_NE(response.error(), "");
+}
+
+TEST(AgentServiceTest, ActivateScenePassesThroughToTheBridgeAndReportsSuccess) {
+  FakeHueClient fake_client;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::ActivateSceneRequest request;
+  request.set_scene_id("scene-1");
+  hue::ActivateSceneResponse response;
+
+  grpc::Status status = service.ActivateScene(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_TRUE(response.ok());
+  EXPECT_EQ(fake_client.last_scene_id, "scene-1");
+}
+
+TEST(AgentServiceTest, ActivateSceneReportsBridgeFailureWithoutThrowing) {
+  FakeHueClient fake_client;
+  fake_client.recall_scene_result = false;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::ActivateSceneRequest request;
+  request.set_scene_id("scene-1");
+  hue::ActivateSceneResponse response;
+
+  grpc::Status status = service.ActivateScene(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_FALSE(response.ok());
+  EXPECT_NE(response.error(), "");
 }

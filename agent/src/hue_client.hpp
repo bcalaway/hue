@@ -46,6 +46,13 @@ class IHueClient {
   virtual std::vector<HueScene> GetScenes() = 0;
   virtual std::vector<HueAutomation> GetAutomations() = 0;
   virtual std::vector<HueRoom> GetRooms() = 0;
+
+  // Returns false (with no exception) on any transport/HTTP-level failure --
+  // callers (AgentServiceImpl) turn that into a gRPC response with ok=false
+  // rather than a thrown error, since "the bridge rejected this" is a
+  // routine, expected outcome (e.g. a stale light id), not a program bug.
+  virtual bool SetLightOn(const std::string& light_id, bool on) = 0;
+  virtual bool RecallScene(const std::string& scene_id) = 0;
 };
 
 // Talks to a real Hue Bridge over its local CLIP v2 API (HTTPS,
@@ -66,6 +73,8 @@ class HueClient : public IHueClient {
   std::vector<HueScene> GetScenes() override;
   std::vector<HueAutomation> GetAutomations() override;
   std::vector<HueRoom> GetRooms() override;
+  bool SetLightOn(const std::string& light_id, bool on) override;
+  bool RecallScene(const std::string& scene_id) override;
 
  private:
   std::string bridge_host_;
