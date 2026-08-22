@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   activateScene,
   addFavorite,
@@ -54,6 +54,22 @@ function patchLight(sites, site, lightId, patch) {
   };
 }
 
+// Same idea, for a scene's `active` flag -- used by the optimistic update
+// on scene activation.
+function patchScene(sites, site, sceneId, patch) {
+  const data = sites[site];
+  return {
+    ...sites,
+    [site]: {
+      ...data,
+      rooms: data.rooms.map((room) => ({
+        ...room,
+        scenes: room.scenes.map((scene) => (scene.id === sceneId ? { ...scene, ...patch } : scene)),
+      })),
+    },
+  };
+}
+
 // Same idea but for every light in one room at once, used by the room-level
 // on/off toggle. Returns both the patched sites state and the prior
 // on-states so a failed request can restore exactly what was on before,
@@ -78,6 +94,21 @@ export default function App() {
   const [animations, setAnimations] = useState([]);
   const [favoriteRoomIds, setFavoriteRoomIds] = useState(new Set());
   const [error, setError] = useState(null);
+  // Not state -- read/written inside the poll's own interval callback and
+  // inside click handlers, never something a render should react to.
+  const suppressPollUntilRef = useRef(0);
+  const pollInFlightRef = useRef(false);
+
+  // Real Hue hardware doesn't flip instantly -- CLIP v2's PUT returns before
+  // the Zigbee mesh has actually finished propagating the change, so a poll
+  // landing right after a click can fetch state from *before* the bridge
+  // caught up and stomp the optimistic update right back to its old value,
+  // which looks exactly like "my click took a few seconds to do anything."
+  // Every mutation calls this to give the bridge a moment before the next
+  // poll is trusted to overwrite what the UI already (correctly) shows.
+  const suppressPollBriefly = useCallback(() => {
+    suppressPollUntilRef.current = Date.now() + 3000;
+  }, []);
 
   useEffect(() => {
     fetchState()
@@ -95,12 +126,23 @@ export default function App() {
   // Only updates `sites`, not `selectedSite` -- the site dropdown and each
   // room's expand/collapse state (local to RoomCard, keyed by room id) are
   // left alone so a poll landing mid-interaction doesn't reset anything.
+  // Skips a tick entirely (rather than just discarding the result) both
+  // right after a click (see suppressPollBriefly) and while a previous poll
+  // is still in flight -- a genuinely unreachable site can take up to the
+  // backend's 3s timeout, longer than this 2s interval, so without the
+  // in-flight guard two requests could overlap and land out of order.
   useEffect(() => {
     const interval = setInterval(() => {
+      if (Date.now() < suppressPollUntilRef.current) return;
+      if (pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
       fetchState()
         .then((data) => setSites(data.sites))
-        .catch(() => {});
-    }, 5000);
+        .catch(() => {})
+        .finally(() => {
+          pollInFlightRef.current = false;
+        });
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -123,6 +165,7 @@ export default function App() {
     (light) => {
       if (!selectedSite) return;
       const nextOn = !light.on;
+      suppressPollBriefly();
       // Flips immediately rather than waiting on a round trip to the site's
       // NUC agent (and from there the bridge) -- reverts below if the
       // bridge actually rejects it, which is rare but not impossible (a
@@ -132,19 +175,21 @@ export default function App() {
         if (!ok) setSites((prev) => patchLight(prev, selectedSite, light.id, { on: light.on }));
       });
     },
-    [selectedSite],
+    [selectedSite, suppressPollBriefly],
   );
 
   const handleActivateScene = useCallback(
     (scene) => {
       if (!selectedSite) return;
-      // Fire-and-forget: this page has no polling loop yet to reflect the
-      // bridge's own status.active flag flipping a moment later, so there's
-      // nothing useful to optimistically update here beyond sending the
-      // request.
+      suppressPollBriefly();
+      // Optimistic, same as everything else -- no revert-on-failure since
+      // there's no clean "prior scene" to restore to (activating one scene
+      // implicitly deactivates whatever else was active in that room, which
+      // this app doesn't track client-side).
+      setSites((prev) => patchScene(prev, selectedSite, scene.id, { active: true }));
       activateScene(selectedSite, scene.id);
     },
-    [selectedSite],
+    [selectedSite, suppressPollBriefly],
   );
 
   const handleToggleRoom = useCallback(
@@ -153,6 +198,7 @@ export default function App() {
       // The circle is a switch: any light on -> this click turns the whole
       // room off; all off -> it turns the whole room on.
       const nextOn = !room.lights.some((light) => light.on);
+      suppressPollBriefly();
       let priorStates;
       setSites((prev) => {
         const { nextSites, priorStates: prior } = patchRoomLights(prev, selectedSite, room.id, nextOn);
@@ -175,7 +221,7 @@ export default function App() {
         });
       });
     },
-    [selectedSite],
+    [selectedSite, suppressPollBriefly],
   );
 
   const handleToggleFavorite = useCallback(
