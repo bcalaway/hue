@@ -29,12 +29,15 @@ struct HueAutomation {
   std::string name;
   bool enabled = false;
   std::string status;
+  std::string configuration_json;  // raw JSON text, see the proto comment
 };
 
 struct HueRoom {
   std::string id;
   std::string name;
   std::vector<std::string> device_ids;  // CLIP v2 room.children device rids
+  std::string grouped_light_id;         // CLIP v2 room.services[] entry
+                                         // with rtype "grouped_light"
 };
 
 // Abstraction over the Hue Bridge's local CLIP v2 API, so AgentServiceImpl
@@ -53,6 +56,7 @@ class IHueClient {
   // routine, expected outcome (e.g. a stale light id), not a program bug.
   virtual bool SetLightOn(const std::string& light_id, bool on) = 0;
   virtual bool RecallScene(const std::string& scene_id) = 0;
+  virtual bool SetGroupedLightOn(const std::string& grouped_light_id, bool on) = 0;
 };
 
 // Talks to a real Hue Bridge over its local CLIP v2 API (HTTPS,
@@ -75,6 +79,7 @@ class HueClient : public IHueClient {
   std::vector<HueRoom> GetRooms() override;
   bool SetLightOn(const std::string& light_id, bool on) override;
   bool RecallScene(const std::string& scene_id) override;
+  bool SetGroupedLightOn(const std::string& grouped_light_id, bool on) override;
 
  private:
   std::string bridge_host_;

@@ -19,6 +19,12 @@ service AgentService {
   // on/off value twice, or recalling the same scene twice, is harmless).
   rpc SetLightState(SetLightStateRequest) returns (SetLightStateResponse);
   rpc ActivateScene(ActivateSceneRequest) returns (ActivateSceneResponse);
+
+  // Turns every light in a room on/off in one bridge call, via CLIP v2's
+  // grouped_light resource (Hue auto-creates exactly one per room) --
+  // that's how Hue's own app implements a room on/off control, rather than
+  // issuing one PUT per light.
+  rpc SetGroupedLightState(SetGroupedLightStateRequest) returns (SetGroupedLightStateResponse);
 }
 
 message GetStateRequest {}
@@ -38,6 +44,16 @@ message ActivateSceneRequest {
 }
 
 message ActivateSceneResponse {
+  bool ok = 1;
+  string error = 2;  // empty on success
+}
+
+message SetGroupedLightStateRequest {
+  string grouped_light_id = 1;
+  bool on = 2;
+}
+
+message SetGroupedLightStateResponse {
   bool ok = 1;
   string error = 2;  // empty on success
 }
@@ -79,6 +95,10 @@ message Room {
   // (a cross-room grouping), which this agent deliberately doesn't surface
   // since there's no room card to attach it to yet.
   repeated Scene scenes = 4;
+  // CLIP v2 room.services[] entry with rtype "grouped_light" -- the
+  // resource id SetGroupedLightState actually operates on. Empty in the
+  // (currently theoretical) case a room somehow has none.
+  string grouped_light_id = 5;
 }
 
 message Automation {
@@ -89,6 +109,14 @@ message Automation {
                            // (e.g. "running", "disabled") passed through
                            // as-is rather than mapped to an enum we'd have
                            // to keep in sync with every status Hue can emit
+  // The behavior_instance's own "configuration" object, passed through as
+  // raw JSON text rather than modeled field-by-field -- its shape is
+  // entirely defined by whichever behavior_script the automation is an
+  // instance of (Hue ships dozens: wake-up, go-to-sleep, motion-triggered,
+  // etc.), each with its own configuration schema Hue doesn't publish.
+  // Showing the raw definition is far cheaper than maintaining a typed
+  // model per script type for a read-only "what does this do" view.
+  string configuration_json = 5;
 }
 
 message GetStateResponse {

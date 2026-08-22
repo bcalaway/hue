@@ -29,6 +29,7 @@ grpc::Status AgentServiceImpl::GetState(grpc::ServerContext* /*context*/, const 
     auto* out = response->add_rooms();
     out->set_id(room.id);
     out->set_name(room.name);
+    out->set_grouped_light_id(room.grouped_light_id);
     rooms_by_id[room.id] = out;
     for (const auto& device_id : room.device_ids) {
       room_id_by_device_id[device_id] = room.id;
@@ -64,6 +65,7 @@ grpc::Status AgentServiceImpl::GetState(grpc::ServerContext* /*context*/, const 
     out->set_name(automation.name);
     out->set_enabled(automation.enabled);
     out->set_status(automation.status);
+    out->set_configuration_json(automation.configuration_json);
   }
 
   return grpc::Status::OK;
@@ -82,6 +84,15 @@ grpc::Status AgentServiceImpl::ActivateScene(grpc::ServerContext* /*context*/,
                                              const hue::ActivateSceneRequest* request,
                                              hue::ActivateSceneResponse* response) {
   bool ok = hue_client_.RecallScene(request->scene_id());
+  response->set_ok(ok);
+  if (!ok) response->set_error("bridge rejected the request");
+  return grpc::Status::OK;
+}
+
+grpc::Status AgentServiceImpl::SetGroupedLightState(grpc::ServerContext* /*context*/,
+                                                    const hue::SetGroupedLightStateRequest* request,
+                                                    hue::SetGroupedLightStateResponse* response) {
+  bool ok = hue_client_.SetGroupedLightOn(request->grouped_light_id(), request->on());
   response->set_ok(ok);
   if (!ok) response->set_error("bridge rejected the request");
   return grpc::Status::OK;

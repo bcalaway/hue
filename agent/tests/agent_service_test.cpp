@@ -47,11 +47,18 @@ class FakeHueClient : public IHueClient {
   }
 
   std::vector<HueAutomation> GetAutomations() override {
-    return {{.id = "auto-1", .name = "Sunset", .enabled = true, .status = "running"}};
+    return {{.id = "auto-1",
+             .name = "Sunset",
+             .enabled = true,
+             .status = "running",
+             .configuration_json = R"({"when":{"time_point":{"time":"sunset"}}})"}};
   }
 
   std::vector<HueRoom> GetRooms() override {
-    return {{.id = "room-1", .name = "Living Room", .device_ids = {"device-1"}}};
+    return {{.id = "room-1",
+             .name = "Living Room",
+             .device_ids = {"device-1"},
+             .grouped_light_id = "grouped-light-1"}};
   }
 
   bool SetLightOn(const std::string& light_id, bool on) override {
@@ -65,12 +72,22 @@ class FakeHueClient : public IHueClient {
     return recall_scene_result;
   }
 
+  bool SetGroupedLightOn(const std::string& grouped_light_id, bool on) override {
+    last_grouped_light_id = grouped_light_id;
+    last_grouped_light_on = on;
+    return set_grouped_light_on_result;
+  }
+
   std::string last_light_id;
   bool last_on = false;
   bool set_light_on_result = true;
 
   std::string last_scene_id;
   bool recall_scene_result = true;
+
+  std::string last_grouped_light_id;
+  bool last_grouped_light_on = false;
+  bool set_grouped_light_on_result = true;
 };
 
 }  // namespace
@@ -91,6 +108,7 @@ TEST(AgentServiceTest, GetStateReturnsBridgeDataForTheConfiguredSite) {
   ASSERT_EQ(response.rooms_size(), 1);
   const auto& room = response.rooms(0);
   EXPECT_EQ(room.name(), "Living Room");
+  EXPECT_EQ(room.grouped_light_id(), "grouped-light-1");
 
   ASSERT_EQ(room.lights_size(), 1);
   EXPECT_EQ(room.lights(0).id(), "light-1");
@@ -113,6 +131,7 @@ TEST(AgentServiceTest, GetStateReturnsBridgeDataForTheConfiguredSite) {
   EXPECT_EQ(response.automations(0).name(), "Sunset");
   EXPECT_TRUE(response.automations(0).enabled());
   EXPECT_EQ(response.automations(0).status(), "running");
+  EXPECT_EQ(response.automations(0).configuration_json(), R"({"when":{"time_point":{"time":"sunset"}}})");
 }
 
 TEST(AgentServiceTest, SetLightStatePassesThroughToTheBridgeAndReportsSuccess) {
@@ -179,6 +198,42 @@ TEST(AgentServiceTest, ActivateSceneReportsBridgeFailureWithoutThrowing) {
   hue::ActivateSceneResponse response;
 
   grpc::Status status = service.ActivateScene(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_FALSE(response.ok());
+  EXPECT_NE(response.error(), "");
+}
+
+TEST(AgentServiceTest, SetGroupedLightStatePassesThroughToTheBridgeAndReportsSuccess) {
+  FakeHueClient fake_client;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::SetGroupedLightStateRequest request;
+  request.set_grouped_light_id("grouped-light-1");
+  request.set_on(false);
+  hue::SetGroupedLightStateResponse response;
+
+  grpc::Status status = service.SetGroupedLightState(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_TRUE(response.ok());
+  EXPECT_EQ(fake_client.last_grouped_light_id, "grouped-light-1");
+  EXPECT_FALSE(fake_client.last_grouped_light_on);
+}
+
+TEST(AgentServiceTest, SetGroupedLightStateReportsBridgeFailureWithoutThrowing) {
+  FakeHueClient fake_client;
+  fake_client.set_grouped_light_on_result = false;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::SetGroupedLightStateRequest request;
+  request.set_grouped_light_id("grouped-light-1");
+  request.set_on(false);
+  hue::SetGroupedLightStateResponse response;
+
+  grpc::Status status = service.SetGroupedLightState(&context, &request, &response);
 
   ASSERT_TRUE(status.ok());
   EXPECT_FALSE(response.ok());

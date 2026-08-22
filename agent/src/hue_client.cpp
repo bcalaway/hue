@@ -189,6 +189,7 @@ std::vector<HueAutomation> HueClient::GetAutomations() {
     automation.name = name_of(item);
     automation.enabled = item.value("enabled", false);
     automation.status = item.value("status", "");
+    automation.configuration_json = item.value("configuration", nlohmann::json::object()).dump();
     automations.push_back(std::move(automation));
   }
   return automations;
@@ -219,6 +220,17 @@ bool HueClient::RecallScene(const std::string& scene_id) {
   return res && res->status == 200;
 }
 
+bool HueClient::SetGroupedLightOn(const std::string& grouped_light_id, bool on) {
+  httplib::Client cli("https://" + bridge_host_);
+  cli.enable_server_certificate_verification(false);
+  cli.set_default_headers({{"hue-application-key", api_key_}});
+  cli.set_connection_timeout(5);
+
+  nlohmann::json body = {{"on", {{"on", on}}}};
+  auto res = cli.Put("/clip/v2/resource/grouped_light/" + grouped_light_id, body.dump(), "application/json");
+  return res && res->status == 200;
+}
+
 std::vector<HueRoom> HueClient::GetRooms() {
   httplib::Client cli("https://" + bridge_host_);
   cli.enable_server_certificate_verification(false);
@@ -233,6 +245,12 @@ std::vector<HueRoom> HueClient::GetRooms() {
     for (const auto& child : item.value("children", nlohmann::json::array())) {
       if (child.value("rtype", "") == "device") {
         room.device_ids.push_back(child.value("rid", ""));
+      }
+    }
+    for (const auto& service : item.value("services", nlohmann::json::array())) {
+      if (service.value("rtype", "") == "grouped_light") {
+        room.grouped_light_id = service.value("rid", "");
+        break;
       }
     }
     rooms.push_back(std::move(room));

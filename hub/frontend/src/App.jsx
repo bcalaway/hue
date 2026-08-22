@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { activateScene, fetchState, setLightState } from "./api.js";
+import {
+  activateScene,
+  createAnimation,
+  deleteAnimation,
+  fetchAnimations,
+  fetchState,
+  setLightState,
+  startAnimation,
+  stopAnimation,
+  turnOffRoom,
+} from "./api.js";
 import RoomCard from "./components/RoomCard.jsx";
 import AutomationsList from "./components/AutomationsList.jsx";
 
@@ -25,9 +35,28 @@ function patchLight(sites, site, lightId, patch) {
   };
 }
 
+// Same idea but for every light in one room at once, used by the room-off
+// button. Returns both the patched sites state and the prior on-states so
+// a failed request can restore exactly what was on before, not just flip
+// everything back on.
+function patchRoomLights(sites, site, roomId, on) {
+  const data = sites[site];
+  const room = data.rooms.find((r) => r.id === roomId);
+  const priorStates = new Map(room.lights.map((light) => [light.id, light.on]));
+  const nextSites = {
+    ...sites,
+    [site]: {
+      ...data,
+      rooms: data.rooms.map((r) => (r.id === roomId ? { ...r, lights: r.lights.map((l) => ({ ...l, on })) } : r)),
+    },
+  };
+  return { nextSites, priorStates };
+}
+
 export default function App() {
   const [sites, setSites] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
+  const [animations, setAnimations] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -39,6 +68,17 @@ export default function App() {
       })
       .catch(() => setError("Failed to load state."));
   }, []);
+
+  const reloadAnimations = useCallback((site) => {
+    if (!site) return;
+    fetchAnimations(site)
+      .then(setAnimations)
+      .catch(() => setAnimations([]));
+  }, []);
+
+  useEffect(() => {
+    reloadAnimations(selectedSite);
+  }, [selectedSite, reloadAnimations]);
 
   const handleToggleLight = useCallback(
     (light) => {
@@ -66,6 +106,66 @@ export default function App() {
       activateScene(selectedSite, scene.id);
     },
     [selectedSite],
+  );
+
+  const handleTurnOffRoom = useCallback(
+    (room) => {
+      if (!selectedSite) return;
+      let priorStates;
+      setSites((prev) => {
+        const { nextSites, priorStates: prior } = patchRoomLights(prev, selectedSite, room.id, false);
+        priorStates = prior;
+        return nextSites;
+      });
+      turnOffRoom(selectedSite, room.grouped_light_id).then((ok) => {
+        if (ok) return;
+        setSites((prev) => {
+          const data = prev[selectedSite];
+          return {
+            ...prev,
+            [selectedSite]: {
+              ...data,
+              rooms: data.rooms.map((r) =>
+                r.id === room.id ? { ...r, lights: r.lights.map((l) => ({ ...l, on: priorStates.get(l.id) })) } : r,
+              ),
+            },
+          };
+        });
+      });
+    },
+    [selectedSite],
+  );
+
+  const handleCreateAnimation = useCallback(
+    (payload) => {
+      if (!selectedSite) return;
+      createAnimation(selectedSite, payload).then(() => reloadAnimations(selectedSite));
+    },
+    [selectedSite, reloadAnimations],
+  );
+
+  const handleStopAnimation = useCallback(
+    (animationId) => {
+      if (!selectedSite) return;
+      stopAnimation(selectedSite, animationId).then(() => reloadAnimations(selectedSite));
+    },
+    [selectedSite, reloadAnimations],
+  );
+
+  const handleStartAnimation = useCallback(
+    (animationId) => {
+      if (!selectedSite) return;
+      startAnimation(selectedSite, animationId).then(() => reloadAnimations(selectedSite));
+    },
+    [selectedSite, reloadAnimations],
+  );
+
+  const handleDeleteAnimation = useCallback(
+    (animationId) => {
+      if (!selectedSite) return;
+      deleteAnimation(selectedSite, animationId).then(() => reloadAnimations(selectedSite));
+    },
+    [selectedSite, reloadAnimations],
   );
 
   if (error) {
@@ -107,16 +207,34 @@ export default function App() {
             <RoomCard
               key={room.id}
               room={room}
+              animations={animations}
               onToggleLight={handleToggleLight}
               onActivateScene={handleActivateScene}
+              onTurnOffRoom={() => handleTurnOffRoom(room)}
+              onCreateAnimation={handleCreateAnimation}
+              onStopAnimation={handleStopAnimation}
+              onStartAnimation={handleStartAnimation}
+              onDeleteAnimation={handleDeleteAnimation}
             />
           ))}
 
           {data.unassigned_lights.length > 0 && (
             <RoomCard
-              room={{ id: "unassigned", name: "Unassigned", lights: data.unassigned_lights, scenes: [] }}
+              room={{
+                id: "unassigned",
+                name: "Unassigned",
+                lights: data.unassigned_lights,
+                scenes: [],
+                grouped_light_id: "",
+              }}
+              animations={animations}
               onToggleLight={handleToggleLight}
               onActivateScene={handleActivateScene}
+              onTurnOffRoom={() => {}}
+              onCreateAnimation={handleCreateAnimation}
+              onStopAnimation={handleStopAnimation}
+              onStartAnimation={handleStartAnimation}
+              onDeleteAnimation={handleDeleteAnimation}
             />
           )}
 

@@ -1,0 +1,51 @@
+import asyncio
+
+from app import animator
+
+
+def test_start_alternates_scenes_and_stop_cancels_it(monkeypatch):
+    calls = []
+
+    def fake_activate_scene(host, scene_id):
+        calls.append(scene_id)
+        return True, ""
+
+    monkeypatch.setattr(animator, "activate_scene", fake_activate_scene)
+
+    async def scenario():
+        animator.start(1, "nyc", "scene-a", "scene-b", interval_seconds=0)
+        assert animator.is_running(1)
+
+        # activate_scene runs on a worker thread (asyncio.to_thread); a
+        # short real sleep gives it room to actually complete a few loop
+        # iterations rather than assuming instant completion.
+        await asyncio.sleep(0.2)
+
+        animator.stop(1)
+        assert not animator.is_running(1)
+
+    asyncio.run(scenario())
+
+    assert len(calls) >= 2
+    assert calls[0] == "scene-a"
+    assert calls[1] == "scene-b"
+
+
+def test_start_is_idempotent_for_an_already_running_animation(monkeypatch):
+    monkeypatch.setattr(animator, "activate_scene", lambda host, scene_id: (True, ""))
+
+    async def scenario():
+        animator.start(2, "nyc", "scene-a", "scene-b", interval_seconds=100)
+        first_task = animator._tasks[2]
+
+        animator.start(2, "nyc", "scene-a", "scene-b", interval_seconds=100)
+
+        assert animator._tasks[2] is first_task
+        animator.stop(2)
+
+    asyncio.run(scenario())
+
+
+def test_stop_on_an_animation_that_isnt_running_is_a_no_op():
+    animator.stop(999)
+    assert not animator.is_running(999)

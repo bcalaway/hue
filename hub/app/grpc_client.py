@@ -57,3 +57,16 @@ def activate_scene(host: str, scene_id: str) -> tuple[bool, str]:
             return response.ok, response.error
     except grpc.RpcError as exc:
         return False, exc.details() or "agent unreachable"
+
+
+def set_grouped_light_state(host: str, grouped_light_id: str, on: bool) -> tuple[bool, str]:
+    if not host:
+        return False, "site has no agent configured"
+    try:
+        with grpc.insecure_channel(f"{host}:{settings.agent_port}") as channel:
+            stub = agent_service_pb2_grpc.AgentServiceStub(channel)
+            request = agent_service_pb2.SetGroupedLightStateRequest(grouped_light_id=grouped_light_id, on=on)
+            response = stub.SetGroupedLightState(request, timeout=5)
+            return response.ok, response.error
+    except grpc.RpcError as exc:
+        return False, exc.details() or "agent unreachable"

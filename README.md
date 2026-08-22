@@ -13,7 +13,7 @@ Two components in one repo, following [ADR-0020](https://github.com/bcalaway/nyc
 
 ## Status
 
-Read-only MVP plus direct control (as of 2026-08-22): see what's on, what scenes exist and which is active, what automations are configured and running, PLUS turn a light on/off or activate a room's scene directly from the hub. Scene-alternation animations (flip between two scenes on a timer) are next. Hue's own automation engine stays primary; this app only steps in for direct control and advanced automations, not as a replacement.
+Read-only MVP plus direct control (as of 2026-08-22): see what's on, what scenes exist and which is active, what automations are configured and running (including each automation's raw definition, on demand), turn a light or a whole room on/off, activate a room's scene, and set up a scene-alternation animation (flip between two scenes on a timer for a room, persisted in Postgres so it survives a hub redeploy). Hue's own automation engine stays primary; this app only steps in for direct control and advanced automations, not as a replacement.
 
 Both sites live as of 2026-08-21 — NYC and Rambles each have a running agent, and the hub's `/api/state` and UI show both side by side (`{"sites": {"nyc": {...}, "rambles": {...}}}`), one section per site.
 

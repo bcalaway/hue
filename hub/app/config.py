@@ -32,5 +32,12 @@ class Settings:
     )
     agent_port: int = int(os.environ.get("AGENT_PORT", "9090"))
 
+    # Postgres (ADR-0016), for animation configs (Milestone 14) -- the only
+    # thing this app persists. Unset means not onboarded yet / running
+    # locally without a database, same graceful-degradation contract as
+    # todo-app's identical settings.
+    postgres_host: str = os.environ.get("POSTGRES_HOST", "postgres")
+    postgres_password: str | None = os.environ.get("POSTGRES_PASSWORD")
+
 
 settings = Settings()
