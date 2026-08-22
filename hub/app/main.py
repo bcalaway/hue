@@ -72,7 +72,11 @@ class RequireAuthMiddleware(BaseHTTPMiddleware):
 # reads request.session, so it must run after SessionMiddleware -- meaning
 # RequireAuthMiddleware has to be added first, SessionMiddleware second.
 app.add_middleware(RequireAuthMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
+# max_age: Starlette's own default is 14 days, separate from however long
+# Authentik's own SSO session lasts (nyc_pa_aws_gitops's
+# compose/aws/authentik/blueprints/session-duration.yaml). ~10 years so
+# Bill isn't asked to log in again until he explicitly logs out.
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, max_age=60 * 60 * 24 * 3650)
 
 oauth = OAuth()
 _auth_configured = bool(settings.authentik_client_id and settings.authentik_client_secret)
