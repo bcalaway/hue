@@ -204,4 +204,23 @@ describe("App", () => {
 
     expect(screen.getByText("Agent unreachable — no live data.")).toBeInTheDocument();
   });
+
+  it("polls /api/state periodically so an animation's scene changes show up without a manual reload", async () => {
+    // advanceTimersByTimeAsync (not waitFor, which polls on its own real-time
+    // schedule and doesn't mix well with fake timers) both advances fake
+    // timers and flushes the microtask queue in between, so the plain
+    // Promises mockFetch returns actually resolve along the way.
+    vi.useFakeTimers();
+    render(<App />);
+
+    await vi.advanceTimersByTimeAsync(0);
+    const initialCalls = fetch.mock.calls.filter((call) => call[0] === "/api/state").length;
+    expect(initialCalls).toBeGreaterThan(0);
+
+    await vi.advanceTimersByTimeAsync(5000);
+    const callsAfterPoll = fetch.mock.calls.filter((call) => call[0] === "/api/state").length;
+
+    expect(callsAfterPoll).toBeGreaterThan(initialCalls);
+    vi.useRealTimers();
+  });
 });

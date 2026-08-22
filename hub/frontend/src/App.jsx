@@ -89,6 +89,21 @@ export default function App() {
       .catch(() => setError("Failed to load state."));
   }, []);
 
+  // Polls for live state -- without this, an animation flipping scenes (or
+  // Hue's own automations doing anything) never shows up here until a
+  // manual page reload, since the initial fetch above only ever runs once.
+  // Only updates `sites`, not `selectedSite` -- the site dropdown and each
+  // room's expand/collapse state (local to RoomCard, keyed by room id) are
+  // left alone so a poll landing mid-interaction doesn't reset anything.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchState()
+        .then((data) => setSites(data.sites))
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const reloadAnimations = useCallback((site) => {
     if (!site) return Promise.resolve();
     return fetchAnimations(site)
