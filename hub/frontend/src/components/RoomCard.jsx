@@ -87,7 +87,7 @@ export default function RoomCard({
           {room.scenes.length > 0 && (
             <div className="scenes-row">
               {room.scenes.map((scene) => (
-                <SceneChip key={scene.id} scene={scene} onActivate={() => onActivateScene(scene)} />
+                <SceneChip key={scene.id} scene={scene} onActivate={() => onActivateScene(scene, room.id)} />
               ))}
             </div>
           )}

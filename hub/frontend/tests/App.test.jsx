@@ -22,7 +22,7 @@ const STATE = {
           ],
           scenes: [
             { id: "scene-1", name: "Movie night", active: false, color_hex: "#0000ff" },
-            { id: "scene-2", name: "Bright", active: false, color_hex: "#ffffff" },
+            { id: "scene-2", name: "Bright", active: true, color_hex: "#ffffff" },
           ],
           grouped_light_id: "grouped-1",
         },
@@ -136,17 +136,24 @@ describe("App", () => {
     );
   });
 
-  it("activates a scene by calling the API", async () => {
+  it("activates a scene by calling the API, and deactivates the previously-active scene in that room", async () => {
     render(<App />);
     await expandLivingRoom();
-    const chip = screen.getByRole("button", { name: /Movie night/ });
+    const movieNight = screen.getByRole("button", { name: /Movie night/ });
+    const bright = screen.getByRole("button", { name: /Bright/ });
+    // Fixture starts with "Bright" active -- this is the bug Bill hit for
+    // real: clicking another scene in the same room left the old one
+    // showing active (green) too, since nothing ever cleared it.
+    expect(bright.className).toContain("active");
 
-    await userEvent.click(chip);
+    await userEvent.click(movieNight);
 
     expect(fetch).toHaveBeenCalledWith(
       "/api/site/nyc/scene/scene-1/activate",
       expect.objectContaining({ method: "POST" }),
     );
+    expect(movieNight.className).toContain("active");
+    expect(bright.className).not.toContain("active");
   });
 
   it("toggles a whole room off via the room-level circle (Living Room starts with a light on)", async () => {

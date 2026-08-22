@@ -13,8 +13,9 @@
   --off: #ff6b6b;
   /* Fallback swatch color for an "on" light/room with no real Hue color
      (smart plugs, and the room-level toggle, which has no single color of
-     its own) -- warm, bulb-like, distinct from --on's status-green. */
-  --on-neutral: #f5c518;
+     its own) -- warm white (a soft incandescent-bulb tone), distinct from
+     --on's status-green without being as saturated as a pure yellow. */
+  --on-neutral: #f5ecd0;
 }
 
 * {
@@ -324,7 +325,11 @@ input[type="number"] {
   height: 0.75rem;
 }
 
-.scene-chip.active {
+.scene-chip.active,
+.scene-chip.active:hover {
+  /* Explicit :hover variant so the active (green) border always wins over
+     the plain hover (blue) one -- both rules have equal specificity
+     otherwise, and the mouse is right there on a chip you just clicked. */
   border-color: var(--on);
   box-shadow: 0 0 0 1px var(--on);
 }

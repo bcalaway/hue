@@ -54,18 +54,24 @@ function patchLight(sites, site, lightId, patch) {
   };
 }
 
-// Same idea, for a scene's `active` flag -- used by the optimistic update
-// on scene activation.
-function patchScene(sites, site, sceneId, patch) {
+// Marks one scene active and every OTHER scene in the SAME room inactive --
+// Hue's own "active" flag is effectively exclusive (a room's lights can
+// only exactly match one scene's captured state at a time), so activating
+// scene B should also visually deactivate whichever scene was active
+// before. Used for the optimistic update on scene activation; without the
+// "every other scene" half of this, the previously-active chip stayed
+// green forever alongside the newly-active one.
+function patchSceneActivation(sites, site, roomId, sceneId) {
   const data = sites[site];
   return {
     ...sites,
     [site]: {
       ...data,
-      rooms: data.rooms.map((room) => ({
-        ...room,
-        scenes: room.scenes.map((scene) => (scene.id === sceneId ? { ...scene, ...patch } : scene)),
-      })),
+      rooms: data.rooms.map((room) =>
+        room.id === roomId
+          ? { ...room, scenes: room.scenes.map((scene) => ({ ...scene, active: scene.id === sceneId })) }
+          : room,
+      ),
     },
   };
 }
@@ -179,14 +185,13 @@ export default function App() {
   );
 
   const handleActivateScene = useCallback(
-    (scene) => {
+    (scene, roomId) => {
       if (!selectedSite) return;
       suppressPollBriefly();
       // Optimistic, same as everything else -- no revert-on-failure since
-      // there's no clean "prior scene" to restore to (activating one scene
-      // implicitly deactivates whatever else was active in that room, which
-      // this app doesn't track client-side).
-      setSites((prev) => patchScene(prev, selectedSite, scene.id, { active: true }));
+      // there's no clean "prior scene" to restore to on failure (this patch
+      // already discards whichever scene used to be active).
+      setSites((prev) => patchSceneActivation(prev, selectedSite, roomId, scene.id));
       activateScene(selectedSite, scene.id);
     },
     [selectedSite, suppressPollBriefly],
