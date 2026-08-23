@@ -13,38 +13,53 @@ const INTERVAL_OPTIONS_SECONDS = [1, 2, 5, 10, 30];
 // creating one), rather than gating changes behind a save step.
 export default function AnimationControls({ room, animations, onCreate, onStop, onStart }) {
   const existing = animations.find((a) => a.room_id === room.id);
-  const [sceneAId, setSceneAId] = useState(existing?.scene_a_id ?? room.scenes[0]?.id ?? "");
-  const [sceneBId, setSceneBId] = useState(existing?.scene_b_id ?? room.scenes[1]?.id ?? "");
+  // A sequence, not just a pair -- 2 is the minimum (enforced below and on
+  // the hub, schemas.py's AnimationCreate), not a fixed size.
+  const [sceneIds, setSceneIds] = useState(
+    existing ? existing.scenes.map((s) => s.id) : [room.scenes[0]?.id ?? "", room.scenes[1]?.id ?? ""],
+  );
   const [intervalSeconds, setIntervalSeconds] = useState(existing?.interval_seconds ?? 5);
 
-  function save(nextSceneAId, nextSceneBId, nextIntervalSeconds) {
-    if (!nextSceneAId || !nextSceneBId || nextSceneAId === nextSceneBId) return;
-    const sceneA = room.scenes.find((s) => s.id === nextSceneAId);
-    const sceneB = room.scenes.find((s) => s.id === nextSceneBId);
+  const isValidSequence =
+    sceneIds.length >= 2 && sceneIds.every(Boolean) && new Set(sceneIds).size === sceneIds.length;
+
+  function save(nextSceneIds, nextIntervalSeconds) {
+    if (nextSceneIds.length < 2 || !nextSceneIds.every(Boolean)) return;
+    if (new Set(nextSceneIds).size !== nextSceneIds.length) return;
     onCreate({
       room_id: room.id,
       room_name: room.name,
-      scene_a_id: sceneA.id,
-      scene_a_name: sceneA.name,
-      scene_b_id: sceneB.id,
-      scene_b_name: sceneB.name,
+      scenes: nextSceneIds.map((id) => {
+        const scene = room.scenes.find((s) => s.id === id);
+        return { id: scene.id, name: scene.name };
+      }),
       interval_seconds: Number(nextIntervalSeconds),
     });
   }
 
-  function handleSceneAChange(event) {
-    setSceneAId(event.target.value);
-    if (existing) save(event.target.value, sceneBId, intervalSeconds);
+  function handleSceneChange(index, value) {
+    const next = sceneIds.map((id, i) => (i === index ? value : id));
+    setSceneIds(next);
+    if (existing) save(next, intervalSeconds);
   }
 
-  function handleSceneBChange(event) {
-    setSceneBId(event.target.value);
-    if (existing) save(sceneAId, event.target.value, intervalSeconds);
+  function handleAddScene() {
+    const unused = room.scenes.find((s) => !sceneIds.includes(s.id));
+    const next = [...sceneIds, unused?.id ?? room.scenes[0].id];
+    setSceneIds(next);
+    if (existing) save(next, intervalSeconds);
+  }
+
+  function handleRemoveScene(index) {
+    if (sceneIds.length <= 2) return;
+    const next = sceneIds.filter((_, i) => i !== index);
+    setSceneIds(next);
+    if (existing) save(next, intervalSeconds);
   }
 
   function handleIntervalChange(event) {
     setIntervalSeconds(event.target.value);
-    if (existing) save(sceneAId, sceneBId, event.target.value);
+    if (existing) save(sceneIds, event.target.value);
   }
 
   return (
@@ -54,7 +69,7 @@ export default function AnimationControls({ room, animations, onCreate, onStop, 
       {existing && (
         <div className="animation-row">
           <span className="animation-label">
-            {existing.scene_a_name} ↔ {existing.scene_b_name} every {existing.interval_seconds}s
+            {existing.scenes.map((s) => s.name).join(" → ")} every {existing.interval_seconds}s
           </span>
           {existing.running ? (
             <button type="button" className="btn" onClick={() => onStop(existing.id)}>
@@ -69,21 +84,38 @@ export default function AnimationControls({ room, animations, onCreate, onStop, 
       )}
 
       <div className="animation-form">
-        <select value={sceneAId} onChange={handleSceneAChange}>
-          {room.scenes.map((scene) => (
-            <option key={scene.id} value={scene.id}>
-              {scene.name}
-            </option>
+        <div className="animation-scene-list">
+          {sceneIds.map((sceneId, index) => (
+            // Index as key is safe here: each row is a fully-controlled
+            // <select> with no internal state of its own, so there's
+            // nothing for React to misassociate across an add/remove.
+            <span key={index} className="animation-scene-row">
+              <select value={sceneId} onChange={(event) => handleSceneChange(index, event.target.value)}>
+                {room.scenes.map((scene) => (
+                  <option key={scene.id} value={scene.id}>
+                    {scene.name}
+                  </option>
+                ))}
+              </select>
+              {sceneIds.length > 2 && (
+                <button
+                  type="button"
+                  className="animation-remove-scene"
+                  onClick={() => handleRemoveScene(index)}
+                  aria-label={`Remove scene ${index + 1}`}
+                >
+                  ✕
+                </button>
+              )}
+              {index < sceneIds.length - 1 && <span className="animation-form-sep">→</span>}
+            </span>
           ))}
-        </select>
-        <span className="animation-form-sep">↔</span>
-        <select value={sceneBId} onChange={handleSceneBChange}>
-          {room.scenes.map((scene) => (
-            <option key={scene.id} value={scene.id}>
-              {scene.name}
-            </option>
-          ))}
-        </select>
+          {sceneIds.length < room.scenes.length && (
+            <button type="button" className="btn" onClick={handleAddScene}>
+              + Scene
+            </button>
+          )}
+        </div>
         <select value={intervalSeconds} onChange={handleIntervalChange} aria-label="Interval in seconds">
           {INTERVAL_OPTIONS_SECONDS.map((seconds) => (
             <option key={seconds} value={seconds}>
@@ -95,8 +127,8 @@ export default function AnimationControls({ room, animations, onCreate, onStop, 
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => save(sceneAId, sceneBId, intervalSeconds)}
-            disabled={sceneAId === sceneBId}
+            onClick={() => save(sceneIds, intervalSeconds)}
+            disabled={!isValidSequence}
           >
             Start
           </button>

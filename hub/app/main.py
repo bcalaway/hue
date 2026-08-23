@@ -38,8 +38,7 @@ async def lifespan(app: FastAPI):
                 animator.start(
                     animation.id,
                     animation.site,
-                    animation.scene_a_id,
-                    animation.scene_b_id,
+                    [s["id"] for s in animation.scenes],
                     animation.interval_seconds,
                 )
         finally:
@@ -218,9 +217,7 @@ async def api_create_animation(site: str, body: AnimationCreate, db: Session = D
         db.add(animation)
     db.commit()
     db.refresh(animation)
-    animator.start(
-        animation.id, site, animation.scene_a_id, animation.scene_b_id, animation.interval_seconds
-    )
+    animator.start(animation.id, site, [s["id"] for s in animation.scenes], animation.interval_seconds)
     return {**AnimationOut.model_validate(animation).model_dump(mode="json"), "running": True}
 
 
@@ -245,9 +242,7 @@ async def api_start_animation(site: str, animation_id: int, db: Session = Depend
     animation = _get_animation_or_404(site, animation_id, db)
     animation.enabled = True
     db.commit()
-    animator.start(
-        animation.id, site, animation.scene_a_id, animation.scene_b_id, animation.interval_seconds
-    )
+    animator.start(animation.id, site, [s["id"] for s in animation.scenes], animation.interval_seconds)
     return {"ok": True}
 
 

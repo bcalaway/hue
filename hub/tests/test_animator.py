@@ -3,7 +3,7 @@ import asyncio
 from app import animator
 
 
-def test_start_alternates_scenes_and_stop_cancels_it(monkeypatch):
+def test_start_cycles_through_all_scenes_in_order_and_stop_cancels_it(monkeypatch):
     calls = []
 
     def fake_activate_scene(host, scene_id, duration_ms=0):
@@ -13,22 +13,21 @@ def test_start_alternates_scenes_and_stop_cancels_it(monkeypatch):
     monkeypatch.setattr(animator, "activate_scene", fake_activate_scene)
 
     async def scenario():
-        animator.start(1, "nyc", "scene-a", "scene-b", interval_seconds=0)
+        animator.start(1, "nyc", ["scene-a", "scene-b", "scene-c"], interval_seconds=0)
         assert animator.is_running(1)
 
         # activate_scene runs on a worker thread (asyncio.to_thread); a
         # short real sleep gives it room to actually complete a few loop
         # iterations rather than assuming instant completion.
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.3)
 
         animator.stop(1)
         assert not animator.is_running(1)
 
     asyncio.run(scenario())
 
-    assert len(calls) >= 2
-    assert calls[0][0] == "scene-a"
-    assert calls[1][0] == "scene-b"
+    assert len(calls) >= 4
+    assert [c[0] for c in calls[:4]] == ["scene-a", "scene-b", "scene-c", "scene-a"]
     # interval_seconds=0 -> the floor kicks in, not zero-length fades.
     assert calls[0][1] == 200
 
@@ -43,10 +42,10 @@ def test_start_is_idempotent_for_an_already_running_animation(monkeypatch):
     monkeypatch.setattr(animator, "activate_scene", lambda host, scene_id, duration_ms=0: (True, ""))
 
     async def scenario():
-        animator.start(2, "nyc", "scene-a", "scene-b", interval_seconds=100)
+        animator.start(2, "nyc", ["scene-a", "scene-b"], interval_seconds=100)
         first_task = animator._tasks[2]
 
-        animator.start(2, "nyc", "scene-a", "scene-b", interval_seconds=100)
+        animator.start(2, "nyc", ["scene-a", "scene-b"], interval_seconds=100)
 
         assert animator._tasks[2] is first_task
         animator.stop(2)

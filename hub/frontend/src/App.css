@@ -436,14 +436,41 @@ section.automations .off {
   min-width: 8rem;
 }
 
-.animation-form input[type="number"] {
-  width: 5rem;
-}
-
 .animation-form-sep {
   color: var(--muted);
   font-size: 0.85rem;
   flex: none;
+}
+
+.animation-scene-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.animation-scene-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.animation-remove-scene {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.animation-remove-scene:hover {
+  border-color: var(--off);
+  color: var(--off);
 }
 
 h3 {

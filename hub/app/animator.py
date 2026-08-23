@@ -22,12 +22,12 @@ def _fade_duration_ms(interval_seconds: int) -> int:
     return max(200, interval_seconds * 1000 - 200)
 
 
-async def _run(animation_id: int, site: str, scene_a_id: str, scene_b_id: str, interval_seconds: int) -> None:
+async def _run(animation_id: int, site: str, scene_ids: list[str], interval_seconds: int) -> None:
     host = settings.agent_hosts.get(site, "")
     duration_ms = _fade_duration_ms(interval_seconds)
-    flip = False
+    index = 0
     while True:
-        scene_id = scene_b_id if flip else scene_a_id
+        scene_id = scene_ids[index]
         # Blocking gRPC call offloaded to a thread so it doesn't stall the
         # event loop -- grpc_client's stubs are sync, matching every other
         # caller in this app (the request-handling endpoints run sync too,
@@ -35,14 +35,14 @@ async def _run(animation_id: int, site: str, scene_a_id: str, scene_b_id: str, i
         ok, error = await asyncio.to_thread(activate_scene, host, scene_id, duration_ms)
         if not ok:
             log.warning("animation %d: activate_scene(%s) failed: %s", animation_id, scene_id, error)
-        flip = not flip
+        index = (index + 1) % len(scene_ids)
         await asyncio.sleep(interval_seconds)
 
 
-def start(animation_id: int, site: str, scene_a_id: str, scene_b_id: str, interval_seconds: int) -> None:
+def start(animation_id: int, site: str, scene_ids: list[str], interval_seconds: int) -> None:
     if animation_id in _tasks:
         return
-    _tasks[animation_id] = asyncio.create_task(_run(animation_id, site, scene_a_id, scene_b_id, interval_seconds))
+    _tasks[animation_id] = asyncio.create_task(_run(animation_id, site, scene_ids, interval_seconds))
 
 
 def stop(animation_id: int) -> None:

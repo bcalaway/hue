@@ -3,10 +3,10 @@ from app import animator
 ANIMATION_BODY = {
     "room_id": "room-1",
     "room_name": "Living Room",
-    "scene_a_id": "scene-a",
-    "scene_a_name": "Relax",
-    "scene_b_id": "scene-b",
-    "scene_b_name": "Energize",
+    "scenes": [
+        {"id": "scene-a", "name": "Relax"},
+        {"id": "scene-b", "name": "Energize"},
+    ],
     "interval_seconds": 30,
 }
 
@@ -18,6 +18,7 @@ def test_create_and_list_animation(client):
     body = response.json()
     assert body["site"] == "nyc"
     assert body["room_name"] == "Living Room"
+    assert body["scenes"] == ANIMATION_BODY["scenes"]
     assert body["enabled"] is True
     assert body["running"] is True
 
@@ -27,14 +28,43 @@ def test_create_and_list_animation(client):
     assert listed[0]["running"] is True
 
 
+def test_a_sequence_of_more_than_two_scenes(client):
+    body = {
+        **ANIMATION_BODY,
+        "scenes": [
+            {"id": "scene-a", "name": "Relax"},
+            {"id": "scene-b", "name": "Energize"},
+            {"id": "scene-c", "name": "Concentrate"},
+            {"id": "scene-d", "name": "Read"},
+        ],
+    }
+
+    response = client.post("/api/site/nyc/animations", json=body)
+
+    assert response.status_code == 200
+    assert len(response.json()["scenes"]) == 4
+
+
+def test_a_single_scene_is_rejected(client):
+    body = {**ANIMATION_BODY, "scenes": [{"id": "scene-a", "name": "Relax"}]}
+
+    response = client.post("/api/site/nyc/animations", json=body)
+
+    assert response.status_code == 422
+
+
 def test_creating_a_second_animation_for_the_same_room_replaces_it_instead_of_stacking(client):
     first = client.post("/api/site/nyc/animations", json=ANIMATION_BODY).json()
 
-    replacement = {**ANIMATION_BODY, "scene_a_name": "Bright", "interval_seconds": 60}
+    replacement = {
+        **ANIMATION_BODY,
+        "scenes": [{"id": "scene-a", "name": "Bright"}, {"id": "scene-b", "name": "Energize"}],
+        "interval_seconds": 60,
+    }
     second = client.post("/api/site/nyc/animations", json=replacement).json()
 
     assert second["id"] == first["id"]
-    assert second["scene_a_name"] == "Bright"
+    assert second["scenes"][0]["name"] == "Bright"
     assert second["interval_seconds"] == 60
 
     listed = client.get("/api/site/nyc/animations").json()

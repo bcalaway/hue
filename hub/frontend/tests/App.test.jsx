@@ -23,6 +23,7 @@ const STATE = {
           scenes: [
             { id: "scene-1", name: "Movie night", active: false, color_hex: "#0000ff" },
             { id: "scene-2", name: "Bright", active: true, color_hex: "#ffffff" },
+            { id: "scene-3", name: "Concentrate", active: false, color_hex: "#00ffff" },
           ],
           grouped_light_id: "grouped-1",
         },
@@ -47,10 +48,10 @@ const EXISTING_ANIMATION = {
   site: "nyc",
   room_id: "room-1",
   room_name: "Living Room",
-  scene_a_id: "scene-1",
-  scene_a_name: "Movie night",
-  scene_b_id: "scene-2",
-  scene_b_name: "Bright",
+  scenes: [
+    { id: "scene-1", name: "Movie night" },
+    { id: "scene-2", name: "Bright" },
+  ],
   interval_seconds: 10,
   enabled: true,
   running: true,
@@ -225,10 +226,10 @@ describe("App", () => {
         body: JSON.stringify({
           room_id: "room-1",
           room_name: "Living Room",
-          scene_a_id: "scene-1",
-          scene_a_name: "Movie night",
-          scene_b_id: "scene-2",
-          scene_b_name: "Bright",
+          scenes: [
+            { id: "scene-1", name: "Movie night" },
+            { id: "scene-2", name: "Bright" },
+          ],
           interval_seconds: 5,
         }),
       }),
@@ -254,11 +255,36 @@ describe("App", () => {
         body: JSON.stringify({
           room_id: "room-1",
           room_name: "Living Room",
-          scene_a_id: "scene-1",
-          scene_a_name: "Movie night",
-          scene_b_id: "scene-2",
-          scene_b_name: "Bright",
+          scenes: [
+            { id: "scene-1", name: "Movie night" },
+            { id: "scene-2", name: "Bright" },
+          ],
           interval_seconds: 30,
+        }),
+      }),
+    );
+  });
+
+  it("adds a third scene to an existing animation's sequence and saves immediately", async () => {
+    vi.stubGlobal("fetch", mockFetchWithExistingAnimation());
+    render(<App />);
+    await expandLivingRoom();
+
+    await userEvent.click(screen.getByRole("button", { name: "+ Scene" }));
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/site/nyc/animations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          room_id: "room-1",
+          room_name: "Living Room",
+          scenes: [
+            { id: "scene-1", name: "Movie night" },
+            { id: "scene-2", name: "Bright" },
+            { id: "scene-3", name: "Concentrate" },
+          ],
+          interval_seconds: 10,
         }),
       }),
     );
