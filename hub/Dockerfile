@@ -17,16 +17,7 @@
 FROM node:24-slim AS frontend-base
 WORKDIR /frontend
 COPY hub/frontend/package*.json ./
-# `npm install` rather than `npm ci` -- there's no package-lock.json checked
-# in yet (this machine has no local Node to generate a real one; see
-# nyc_pa_aws_gitops's CLAUDE.md gotcha on Docker Desktop/WSL needing
-# elevated setup this session couldn't do). `npm ci` hard-requires an
-# existing lockfile and would fail outright without one. Follow-up: once a
-# real lockfile exists (generate with `npm install` from a machine with
-# Node, then commit hub/frontend/package-lock.json), switch this back to
-# `npm ci` for reproducible builds, matching templates/react/Dockerfile's
-# convention in nyc_pa_aws_gitops.
-RUN npm install
+RUN npm ci
 COPY hub/frontend/ ./
 
 FROM frontend-base AS frontend-lint

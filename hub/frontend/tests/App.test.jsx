@@ -112,7 +112,7 @@ describe("App", () => {
     await expandLivingRoom();
 
     expect(screen.getByText("Lamp")).toBeInTheDocument();
-    expect(screen.getByText("Movie night")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Movie night/ })).toBeInTheDocument();
     expect(screen.getByText("Animate")).toBeInTheDocument();
   });
 
