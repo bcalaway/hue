@@ -4,6 +4,20 @@ export async function fetchState() {
   return res.json();
 }
 
+// Which site's LAN the hub thinks this browser is on, or null if it can't
+// tell. Never throws -- a failure here just means "no auto-pick", it must
+// not break the initial page load it's fetched alongside.
+export async function fetchDetectedSite() {
+  try {
+    const res = await fetch("/api/detected-site");
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.site || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function setLightState(site, lightId, on) {
   const res = await fetch(`/api/site/${site}/light/${lightId}`, {
     method: "POST",

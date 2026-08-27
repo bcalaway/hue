@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, settings
 
 client = TestClient(app)
 
@@ -83,6 +83,26 @@ def test_set_room_state_on_success():
         response = client.post("/api/site/nyc/grouped-light/grouped-1", json={"on": True})
     assert response.status_code == 200
     mock_set.assert_called_once_with("", "grouped-1", True)
+
+
+def test_detected_site_unknown_ip():
+    # An IP not in the WAN-IP map (none configured in the test env) -- the
+    # UI treats a null site as "no auto-pick, use manual/first-available".
+    response = client.get("/api/detected-site", headers={"X-Forwarded-For": "203.0.113.50"})
+    assert response.status_code == 200
+    assert response.json() == {"site": None, "client_ip": "203.0.113.50"}
+
+
+def test_detected_site_matches_configured_ip(monkeypatch):
+    # settings is a frozen dataclass instance -- the attribute can't be
+    # rebound, but mutating the dict it already holds is fine and
+    # monkeypatch undoes it afterwards. Only the leftmost X-Forwarded-For
+    # entry (the original client) is matched, not the proxy hops after it.
+    monkeypatch.setitem(settings.site_wan_ips, "203.0.113.7", "rambles")
+    response = client.get(
+        "/api/detected-site", headers={"X-Forwarded-For": "203.0.113.7, 172.20.0.3"}
+    )
+    assert response.json() == {"site": "rambles", "client_ip": "203.0.113.7"}
 
 
 def test_login_without_configured_auth():

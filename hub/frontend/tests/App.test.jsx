@@ -62,6 +62,27 @@ function mockFetch() {
     if (url === "/api/state") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(STATE) });
     }
+    if (url === "/api/detected-site") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ site: null, client_ip: "203.0.113.1" }) });
+    }
+    if (options?.method === "POST" || options?.method === "DELETE") {
+      return Promise.resolve({ ok: true });
+    }
+    return Promise.resolve({ ok: false });
+  });
+}
+
+// Builds a fetch mock whose /api/detected-site answer is read fresh from
+// `ref.value` on every call, so a test can change the "detected" site
+// mid-run to simulate the device roaming between site LANs.
+function mockFetchWithDetectedSite(ref) {
+  return vi.fn((url, options) => {
+    if (url === "/api/state") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(STATE) });
+    }
+    if (url === "/api/detected-site") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ site: ref.value }) });
+    }
     if (options?.method === "POST" || options?.method === "DELETE") {
       return Promise.resolve({ ok: true });
     }
@@ -76,6 +97,9 @@ function mockFetchWithExistingAnimation() {
   return vi.fn((url, options) => {
     if (url === "/api/state") {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(STATE) });
+    }
+    if (url === "/api/detected-site") {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ site: null, client_ip: "203.0.113.1" }) });
     }
     if (url === "/api/site/nyc/animations" && (!options || options.method === undefined)) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([EXISTING_ANIMATION]) });
@@ -316,5 +340,44 @@ describe("App", () => {
 
     expect(callsAfterPoll).toBeGreaterThan(initialCalls);
     vi.useRealTimers();
+  });
+
+  it("defaults the site dropdown to whichever site the hub detects from the network", async () => {
+    // rambles is unavailable in the fixture, but "you're physically at
+    // Rambles" is still the right default -- shown with its unreachable notice.
+    vi.stubGlobal("fetch", mockFetchWithDetectedSite({ value: "rambles" }));
+    render(<App />);
+
+    expect(await screen.findByText("Agent unreachable — no live data.")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveValue("rambles");
+  });
+
+  it("follows the user to the other site when the detected network changes under an open tab", async () => {
+    const detected = { value: "nyc" };
+    vi.stubGlobal("fetch", mockFetchWithDetectedSite(detected));
+    render(<App />);
+    await screen.findByText("Living Room");
+    expect(screen.getByRole("combobox")).toHaveValue("nyc");
+
+    detected.value = "rambles";
+    window.dispatchEvent(new Event("focus"));
+
+    expect(await screen.findByText("Agent unreachable — no live data.")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveValue("rambles");
+  });
+
+  it("keeps a manual site pick when a re-check still reports the other site (network unchanged)", async () => {
+    vi.stubGlobal("fetch", mockFetchWithDetectedSite({ value: "nyc" }));
+    render(<App />);
+    await screen.findByText("Living Room");
+
+    await userEvent.selectOptions(screen.getByRole("combobox"), "rambles");
+    expect(screen.getByRole("combobox")).toHaveValue("rambles");
+
+    // Tab refocus re-checks detection; it still says "nyc", but the network
+    // hasn't changed since load, so the deliberate pick stands.
+    window.dispatchEvent(new Event("focus"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByRole("combobox")).toHaveValue("rambles");
   });
 });

@@ -4,6 +4,7 @@ import {
   addFavorite,
   createAnimation,
   fetchAnimations,
+  fetchDetectedSite,
   fetchFavorites,
   fetchState,
   removeFavorite,
@@ -104,6 +105,15 @@ export default function App() {
   // inside click handlers, never something a render should react to.
   const suppressPollUntilRef = useRef(0);
   const pollInFlightRef = useRef(false);
+  // Site auto-detection (see fetchDetectedSite / the hue README). `sitesRef`
+  // mirrors `sites` so the roam effect below can stay `[]`-deps instead of
+  // re-subscribing on every 2s poll. `lastDetectedRef` is the last site the
+  // hub reported for this browser's IP; `manualOverrideRef` is set once the
+  // user picks from the dropdown and cleared again only when the detected
+  // network actually changes underneath them.
+  const sitesRef = useRef(null);
+  const lastDetectedRef = useRef(null);
+  const manualOverrideRef = useRef(false);
 
   // Real Hue hardware doesn't flip instantly -- CLIP v2's PUT returns before
   // the Zigbee mesh has actually finished propagating the change, so a poll
@@ -117,13 +127,53 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetchState()
-      .then((data) => {
+    Promise.all([fetchState(), fetchDetectedSite()])
+      .then(([data, detected]) => {
         setSites(data.sites);
         const keys = Object.keys(data.sites);
-        setSelectedSite(keys.find((key) => data.sites[key].available) || keys[0]);
+        lastDetectedRef.current = detected;
+        const firstAvailable = keys.find((key) => data.sites[key].available) || keys[0];
+        // Detected site wins on first load even if that site's agent is
+        // currently unreachable -- "you're physically at Rambles" is still
+        // the right thing to show (with its unreachable notice).
+        setSelectedSite(detected && keys.includes(detected) ? detected : firstAvailable);
       })
       .catch(() => setError("Failed to load state."));
+  }, []);
+
+  // Keeps sitesRef in step with sites for the roam effect below.
+  useEffect(() => {
+    sitesRef.current = sites;
+  }, [sites]);
+
+  // Follows the user if they move their device between the NYC and Rambles
+  // LANs with the page open -- the reason detection is done by IP
+  // server-side rather than via split-horizon DNS (see the hue README).
+  // Re-checks on a slow interval and whenever the tab regains
+  // focus/visibility. A real network change clears any manual dropdown
+  // pick; while the detected network is unchanged, a manual pick stands.
+  useEffect(() => {
+    function recheck() {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      fetchDetectedSite().then((detected) => {
+        if (!detected) return;
+        const keys = sitesRef.current ? Object.keys(sitesRef.current) : [];
+        if (!keys.includes(detected)) return;
+        const networkChanged = detected !== lastDetectedRef.current;
+        lastDetectedRef.current = detected;
+        if (networkChanged) manualOverrideRef.current = false;
+        if (manualOverrideRef.current) return;
+        setSelectedSite((current) => (detected === current ? current : detected));
+      });
+    }
+    const interval = setInterval(recheck, 60000);
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
   }, []);
 
   // Polls for live state -- without this, an animation flipping scenes (or
@@ -166,6 +216,13 @@ export default function App() {
       .then((data) => setFavoriteRoomIds(new Set(data.room_ids)))
       .catch(() => setFavoriteRoomIds(new Set()));
   }, [selectedSite, reloadAnimations]);
+
+  const handleSiteChange = useCallback((event) => {
+    // A deliberate pick holds until the detected network actually changes
+    // under the user (see the roam effect above).
+    manualOverrideRef.current = true;
+    setSelectedSite(event.target.value);
+  }, []);
 
   const handleToggleLight = useCallback(
     (light) => {
@@ -304,7 +361,7 @@ export default function App() {
       </a>
       <header>
         <h1>Hue</h1>
-        <select value={selectedSite} onChange={(event) => setSelectedSite(event.target.value)}>
+        <select value={selectedSite} onChange={handleSiteChange}>
           {Object.keys(sites).map((key) => (
             <option key={key} value={key}>
               {siteLabel(key)}

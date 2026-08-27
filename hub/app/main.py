@@ -152,6 +152,23 @@ def api_state():
     return {"sites": sites}
 
 
+@app.get("/api/detected-site")
+def api_detected_site(request: Request):
+    # Best-effort guess of which site's LAN this browser is on, from the
+    # public IP the hub sees for it (a site's LAN traffic reaches here
+    # NAT'd to that site's WAN IP). The frontend uses this as the initial
+    # site default and to follow the user if they roam networks with the
+    # page open -- a manual dropdown pick overrides it. Returns
+    # {"site": null} for an unrecognised IP (off-site, cellular, Rambles on
+    # Starlink CGNAT, or a stale WAN-IP map). `client_ip` is echoed back
+    # only to make updating that map easier when an ISP lease changes.
+    forwarded = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded.split(",")[0].strip()
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    return {"site": settings.site_wan_ips.get(client_ip), "client_ip": client_ip}
+
+
 class SetLightStateBody(BaseModel):
     on: bool
 

@@ -17,6 +17,10 @@ Read-only MVP plus direct control (as of 2026-08-22): see what's on, what scenes
 
 Both sites live as of 2026-08-21 — NYC and Rambles each have a running agent, and the hub's `/api/state` and UI show both side by side (`{"sites": {"nyc": {...}, "rambles": {...}}}`), one section per site.
 
+### Site auto-selection
+
+The UI picks the site dropdown's initial value (and re-picks it if you carry the page between the two LANs) from which network the browser appears to be on. The hub can't see the browser's LAN address — everyone reaches `hue.billandjessie.com` via the same public endpoint — so `GET /api/detected-site` matches the public IP the hub sees (`X-Forwarded-For`, set by Traefik) against a small map of each site's WAN egress IP, configured as `SITE_WAN_IP_NYC` / `SITE_WAN_IP_RAMBLES` in [`hub/deploy/docker-compose.yml`](hub/deploy/docker-compose.yml). This is best-effort: those are residential dynamic IPs and drift over time (open `/api/detected-site` in a browser to see the IP the hub currently sees, and update the compose file when it changes), and Rambles behind Starlink failover is CGNAT with no stable IP — an unrecognised IP just means "no auto-pick", and manual dropdown selection always works. A deliberate pick is kept until the detected network actually changes under you. Split-horizon DNS (`hue.billandjessie.com` → `10.0.3.1` on the site routers) was the alternative considered and rejected: it makes the hostname resolve to an address that only works on specific LANs, which breaks a phone that roams onto cellular between sites.
+
 The hub's UI (`hub/frontend/`) is a React + Vite frontend, styled to match the `billandjessie.com` landing page's dark theme, built into the Python backend's static assets at Docker build time (see `hub/Dockerfile`) — there's no Node runtime in the final image.
 
 ## Local development

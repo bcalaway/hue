@@ -18,6 +18,15 @@ services:
       AGENT_HOST_NYC: "10.0.1.34"
       AGENT_HOST_RAMBLES: "10.0.2.10"
       AGENT_PORT: "9090"
+      # Public WAN egress IP per site -- lets the UI auto-select the site
+      # dropdown from which network the browser is on (the hub sees the
+      # site's NAT egress IP in X-Forwarded-For). Best-effort: these are
+      # residential dynamic IPs and will drift -- update here when they do
+      # (open /api/detected-site to see the IP the hub currently sees).
+      # Rambles on Starlink failover is CGNAT with no stable IP; that case
+      # just falls back to manual selection. Measured 2026-08-27.
+      SITE_WAN_IP_NYC: "173.68.62.107"
+      SITE_WAN_IP_RAMBLES: "204.186.165.69"
     env_file:
       - .env
     networks:
