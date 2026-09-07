@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.jsx";
@@ -191,6 +191,36 @@ describe("App", () => {
       "/api/site/nyc/light/light-1",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ on: true }) }),
     );
+  });
+
+  it("sets a dimmable light's brightness via the slider, once, on release", async () => {
+    render(<App />);
+    await expandLivingRoom();
+    const slider = screen.getByRole("slider", { name: "Lamp brightness" });
+
+    // Dragging (change events) must not fire the request per step -- only
+    // the release (blur here; pointerup/keyup are wired the same way).
+    fireEvent.change(slider, { target: { value: "40" } });
+    fireEvent.change(slider, { target: { value: "65" } });
+    const callsWhileDragging = fetch.mock.calls.filter((c) => String(c[0]).includes("/brightness")).length;
+    expect(callsWhileDragging).toBe(0);
+
+    fireEvent.blur(slider);
+
+    const brightnessCalls = fetch.mock.calls.filter((c) => String(c[0]).includes("/brightness"));
+    expect(brightnessCalls).toHaveLength(1);
+    expect(brightnessCalls[0]).toEqual([
+      "/api/site/nyc/light/light-1/brightness",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ brightness: 65 }) }),
+    ]);
+  });
+
+  it("shows no brightness slider for a non-dimmable light (e.g. a smart plug)", async () => {
+    render(<App />);
+    await expandLivingRoom();
+
+    expect(screen.getByRole("slider", { name: "Lamp brightness" })).toBeInTheDocument();
+    expect(screen.queryByRole("slider", { name: /Fountain plug/ })).not.toBeInTheDocument();
   });
 
   it("activates a scene by calling the API, and deactivates the previously-active scene in that room", async () => {

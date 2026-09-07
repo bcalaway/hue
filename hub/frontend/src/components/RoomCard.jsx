@@ -10,6 +10,7 @@ export default function RoomCard({
   isFavorite,
   onToggleFavorite,
   onToggleLight,
+  onSetLightBrightness,
   onActivateScene,
   onToggleRoom,
   onCreateAnimation,
@@ -80,7 +81,12 @@ export default function RoomCard({
         <div className="room-body">
           <div className="lights-grid">
             {room.lights.map((light) => (
-              <LightTile key={light.id} light={light} onToggle={() => onToggleLight(light)} />
+              <LightTile
+                key={light.id}
+                light={light}
+                onToggle={() => onToggleLight(light)}
+                onSetBrightness={onSetLightBrightness}
+              />
             ))}
           </div>
 

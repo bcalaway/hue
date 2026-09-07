@@ -50,6 +50,28 @@ def test_set_light_state_success():
     mock_set.assert_called_once_with("", "light-1", True)
 
 
+def test_set_light_brightness_without_configured_agent():
+    response = client.post("/api/site/nyc/light/light-1/brightness", json={"brightness": 40})
+    assert response.status_code == 502
+    assert response.json()["ok"] is False
+
+
+def test_set_light_brightness_success():
+    with patch("app.main.set_light_brightness", return_value=(True, "")) as mock_set:
+        response = client.post("/api/site/nyc/light/light-1/brightness", json={"brightness": 40})
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    mock_set.assert_called_once_with("", "light-1", 40.0)
+
+
+def test_set_light_brightness_rejects_out_of_range():
+    # 0 is not a valid CLIP v2 brightness (a light at 0% is off) -- the
+    # slider's range starts at 1, and the body model enforces it as a 422
+    # rather than letting it reach the bridge as a 502.
+    response = client.post("/api/site/nyc/light/light-1/brightness", json={"brightness": 0})
+    assert response.status_code == 422
+
+
 def test_activate_scene_without_configured_agent():
     response = client.post("/api/site/nyc/scene/scene-1/activate")
     assert response.status_code == 502

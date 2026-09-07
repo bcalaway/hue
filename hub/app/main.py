@@ -5,7 +5,7 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -13,7 +13,13 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import animator
 from app.config import settings
 from app.db import SessionLocal, create_tables, get_db
-from app.grpc_client import activate_scene, get_all_states, set_grouped_light_state, set_light_state
+from app.grpc_client import (
+    activate_scene,
+    get_all_states,
+    set_grouped_light_state,
+    set_light_brightness,
+    set_light_state,
+)
 from app.models import Animation, Favorite
 from app.schemas import AnimationCreate, AnimationOut
 
@@ -173,10 +179,25 @@ class SetLightStateBody(BaseModel):
     on: bool
 
 
+class SetLightBrightnessBody(BaseModel):
+    # 1-100. Clamped again in grpc_client before it reaches the bridge, but
+    # bounded here too so an obviously-bad value is a 422, not a 502.
+    brightness: float = Field(ge=1, le=100)
+
+
 @app.post("/api/site/{site}/light/{light_id}")
 def api_set_light_state(site: str, light_id: str, body: SetLightStateBody):
     host = settings.agent_hosts.get(site, "")
     ok, error = set_light_state(host, light_id, body.on)
+    if not ok:
+        return JSONResponse({"ok": False, "error": error}, status_code=502)
+    return {"ok": True}
+
+
+@app.post("/api/site/{site}/light/{light_id}/brightness")
+def api_set_light_brightness(site: str, light_id: str, body: SetLightBrightnessBody):
+    host = settings.agent_hosts.get(site, "")
+    ok, error = set_light_brightness(host, light_id, body.brightness)
     if not ok:
         return JSONResponse({"ok": False, "error": error}, status_code=502)
     return {"ok": True}
