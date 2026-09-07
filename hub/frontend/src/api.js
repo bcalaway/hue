@@ -27,6 +27,17 @@ export async function setLightState(site, lightId, on) {
   return res.ok;
 }
 
+// brightness is 1-100. The agent turns the light on as part of the same
+// bridge call, so this doubles as "turn on at this level".
+export async function setLightBrightness(site, lightId, brightness) {
+  const res = await fetch(`/api/site/${site}/light/${lightId}/brightness`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ brightness }),
+  });
+  return res.ok;
+}
+
 export async function activateScene(site, sceneId) {
   const res = await fetch(`/api/site/${site}/scene/${sceneId}/activate`, { method: "POST" });
   return res.ok;

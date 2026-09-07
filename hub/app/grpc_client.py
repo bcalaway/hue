@@ -58,6 +58,25 @@ def set_light_state(host: str, light_id: str, on: bool) -> tuple[bool, str]:
         return False, exc.details() or "agent unreachable"
 
 
+def set_light_brightness(host: str, light_id: str, brightness: float) -> tuple[bool, str]:
+    # brightness is clamped to CLIP v2's valid 1-100 range here rather than
+    # trusting the caller -- the agent PUTs it straight through to the
+    # bridge, which rejects 0 and anything over 100.
+    if not host:
+        return False, "site has no agent configured"
+    brightness = max(1.0, min(100.0, brightness))
+    try:
+        with grpc.insecure_channel(f"{host}:{settings.agent_port}") as channel:
+            stub = agent_service_pb2_grpc.AgentServiceStub(channel)
+            response = stub.SetLightBrightness(
+                agent_service_pb2.SetLightBrightnessRequest(light_id=light_id, brightness=brightness),
+                timeout=_TIMEOUT_SECONDS,
+            )
+            return response.ok, response.error
+    except grpc.RpcError as exc:
+        return False, exc.details() or "agent unreachable"
+
+
 def activate_scene(host: str, scene_id: str, duration_ms: int = 0) -> tuple[bool, str]:
     # duration_ms=0 (the default, used by the manual "click a scene chip"
     # path) omits CLIP v2's recall.duration -- the bridge's own default

@@ -8,6 +8,7 @@ import {
   fetchFavorites,
   fetchState,
   removeFavorite,
+  setLightBrightness,
   setLightState,
   setRoomState,
   startAnimation,
@@ -241,6 +242,22 @@ export default function App() {
     [selectedSite, suppressPollBriefly],
   );
 
+  const handleSetLightBrightness = useCallback(
+    (light, brightness) => {
+      if (!selectedSite) return;
+      suppressPollBriefly();
+      // Optimistic + on:true, since the agent turns the light on as part of
+      // the same bridge call (dragging the slider up on an off light lights
+      // it). Reverts both fields if the bridge rejects it.
+      const prior = { on: light.on, brightness: light.brightness };
+      setSites((prev) => patchLight(prev, selectedSite, light.id, { on: true, brightness }));
+      setLightBrightness(selectedSite, light.id, brightness).then((ok) => {
+        if (!ok) setSites((prev) => patchLight(prev, selectedSite, light.id, prior));
+      });
+    },
+    [selectedSite, suppressPollBriefly],
+  );
+
   const handleActivateScene = useCallback(
     (scene, roomId) => {
       if (!selectedSite) return;
@@ -382,6 +399,7 @@ export default function App() {
               isFavorite={favoriteRoomIds.has(room.id)}
               onToggleFavorite={() => handleToggleFavorite(room)}
               onToggleLight={handleToggleLight}
+              onSetLightBrightness={handleSetLightBrightness}
               onActivateScene={handleActivateScene}
               onToggleRoom={() => handleToggleRoom(room)}
               onCreateAnimation={handleCreateAnimation}
@@ -401,6 +419,7 @@ export default function App() {
               }}
               animations={animations}
               onToggleLight={handleToggleLight}
+              onSetLightBrightness={handleSetLightBrightness}
               onActivateScene={handleActivateScene}
               onToggleRoom={() => {}}
               onCreateAnimation={handleCreateAnimation}

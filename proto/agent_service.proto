@@ -20,6 +20,13 @@ service AgentService {
   rpc SetLightState(SetLightStateRequest) returns (SetLightStateResponse);
   rpc ActivateScene(ActivateSceneRequest) returns (ActivateSceneResponse);
 
+  // Set one light's brightness (the UI's per-light dimmer slider). The
+  // agent sends CLIP v2 `dimming.brightness` AND `on.on=true` in the same
+  // PUT -- dragging a slider up from a low value is expected to light a
+  // light that was off, the same as the Hue app's own slider does.
+  // Idempotent.
+  rpc SetLightBrightness(SetLightBrightnessRequest) returns (SetLightBrightnessResponse);
+
   // Turns every light in a room on/off in one bridge call, via CLIP v2's
   // grouped_light resource (Hue auto-creates exactly one per room) --
   // that's how Hue's own app implements a room on/off control, rather than
@@ -35,6 +42,19 @@ message SetLightStateRequest {
 }
 
 message SetLightStateResponse {
+  bool ok = 1;
+  string error = 2;  // empty on success
+}
+
+message SetLightBrightnessRequest {
+  string light_id = 1;
+  // 1-100, CLIP v2's native `dimming.brightness` percentage. The hub
+  // clamps to this range before sending -- CLIP v2 rejects 0 (a light at
+  // "0%" is off, which is the on/off toggle's job, not the slider's).
+  double brightness = 2;
+}
+
+message SetLightBrightnessResponse {
   bool ok = 1;
   string error = 2;  // empty on success
 }

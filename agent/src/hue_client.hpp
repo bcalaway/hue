@@ -59,6 +59,10 @@ class IHueClient {
   // rather than a thrown error, since "the bridge rejected this" is a
   // routine, expected outcome (e.g. a stale light id), not a program bug.
   virtual bool SetLightOn(const std::string& light_id, bool on) = 0;
+  // Sets `dimming.brightness` and `on.on=true` in one PUT -- see the
+  // SetLightBrightness RPC comment. `brightness` is expected pre-clamped to
+  // 1-100 by the caller (the hub does this).
+  virtual bool SetLightBrightness(const std::string& light_id, double brightness) = 0;
   // duration_ms of 0 omits CLIP v2's recall.duration entirely (bridge's own
   // default transition); a positive value crossfades over that many ms.
   virtual bool RecallScene(const std::string& scene_id, int duration_ms) = 0;
@@ -84,6 +88,7 @@ class HueClient : public IHueClient {
   std::vector<HueAutomation> GetAutomations() override;
   std::vector<HueRoom> GetRooms() override;
   bool SetLightOn(const std::string& light_id, bool on) override;
+  bool SetLightBrightness(const std::string& light_id, double brightness) override;
   bool RecallScene(const std::string& scene_id, int duration_ms) override;
   bool SetGroupedLightOn(const std::string& grouped_light_id, bool on) override;
 

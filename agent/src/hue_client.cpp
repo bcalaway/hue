@@ -217,6 +217,19 @@ bool HueClient::SetLightOn(const std::string& light_id, bool on) {
   return res && IsSuccessStatus(res->status);
 }
 
+bool HueClient::SetLightBrightness(const std::string& light_id, double brightness) {
+  httplib::Client cli("https://" + bridge_host_);
+  cli.enable_server_certificate_verification(false);
+  cli.set_default_headers({{"hue-application-key", api_key_}});
+  cli.set_connection_timeout(5);
+
+  // on.on=true alongside dimming.brightness so dragging the slider up
+  // lights a light that was off, in one PUT -- same as the Hue app.
+  nlohmann::json body = {{"on", {{"on", true}}}, {"dimming", {{"brightness", brightness}}}};
+  auto res = cli.Put("/clip/v2/resource/light/" + light_id, body.dump(), "application/json");
+  return res && IsSuccessStatus(res->status);
+}
+
 bool HueClient::RecallScene(const std::string& scene_id, int duration_ms) {
   httplib::Client cli("https://" + bridge_host_);
   cli.enable_server_certificate_verification(false);

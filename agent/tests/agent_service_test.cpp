@@ -79,6 +79,12 @@ class FakeHueClient : public IHueClient {
     return set_light_on_result;
   }
 
+  bool SetLightBrightness(const std::string& light_id, double brightness) override {
+    last_brightness_light_id = light_id;
+    last_brightness = brightness;
+    return set_light_brightness_result;
+  }
+
   bool RecallScene(const std::string& scene_id, int duration_ms) override {
     last_scene_id = scene_id;
     last_duration_ms = duration_ms;
@@ -94,6 +100,10 @@ class FakeHueClient : public IHueClient {
   std::string last_light_id;
   bool last_on = false;
   bool set_light_on_result = true;
+
+  std::string last_brightness_light_id;
+  double last_brightness = -1.0;
+  bool set_light_brightness_result = true;
 
   std::string last_scene_id;
   int last_duration_ms = -1;
@@ -186,6 +196,43 @@ TEST(AgentServiceTest, SetLightStateReportsBridgeFailureWithoutThrowing) {
   hue::SetLightStateResponse response;
 
   grpc::Status status = service.SetLightState(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_FALSE(response.ok());
+  EXPECT_NE(response.error(), "");
+}
+
+TEST(AgentServiceTest, SetLightBrightnessPassesThroughToTheBridgeAndReportsSuccess) {
+  FakeHueClient fake_client;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::SetLightBrightnessRequest request;
+  request.set_light_id("light-1");
+  request.set_brightness(42.0);
+  hue::SetLightBrightnessResponse response;
+
+  grpc::Status status = service.SetLightBrightness(&context, &request, &response);
+
+  ASSERT_TRUE(status.ok());
+  EXPECT_TRUE(response.ok());
+  EXPECT_EQ(response.error(), "");
+  EXPECT_EQ(fake_client.last_brightness_light_id, "light-1");
+  EXPECT_DOUBLE_EQ(fake_client.last_brightness, 42.0);
+}
+
+TEST(AgentServiceTest, SetLightBrightnessReportsBridgeFailureWithoutThrowing) {
+  FakeHueClient fake_client;
+  fake_client.set_light_brightness_result = false;
+  AgentServiceImpl service(fake_client, "nyc");
+
+  grpc::ServerContext context;
+  hue::SetLightBrightnessRequest request;
+  request.set_light_id("light-1");
+  request.set_brightness(10.0);
+  hue::SetLightBrightnessResponse response;
+
+  grpc::Status status = service.SetLightBrightness(&context, &request, &response);
 
   ASSERT_TRUE(status.ok());
   EXPECT_FALSE(response.ok());
