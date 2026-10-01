@@ -31,3 +31,5 @@ Both need `proto/agent_service.proto` to build: the C++ side generates code via 
 
 The hub's frontend (`hub/frontend/`) is developed separately from its backend: `npm run dev` (Vite, hot-reloading) proxies `/api`, `/health`, `/login`, and `/auth/callback` to a locally-running backend (`uvicorn app.main:app --port 8000` from `hub/`) — see `hub/frontend/vite.config.js`. `npm run build` produces the static output the backend serves in production; there's no need to run that by hand outside Docker, `hub/Dockerfile` does it as part of the image build.
 Voice coding tasks enabled for this repo on 2026-09-30.
+
+See [Architecture](docs/architecture.md) for the DevOps workflow and infrastructure diagrams.
