@@ -1,3 +1,4 @@
+// Root component of the hue hub UI: lets you control lights, scenes, favorites and animations.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   activateScene,
