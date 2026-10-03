@@ -8,6 +8,10 @@ services:
     image: 147856894209.dkr.ecr.us-east-1.amazonaws.com/hue:latest
     container_name: hue
     restart: unless-stopped
+    # Required on the hub since ADR-0026: the platform deploy rejects a
+    # service without one. Interim value; resized from Grafana's Containers
+    # dashboard (peak over a week + ~30%) in Milestone 21.
+    mem_limit: 512m
     environment:
       # Not secrets -- set directly here rather than round-tripping through
       # SSM/.env like the real credentials below.
